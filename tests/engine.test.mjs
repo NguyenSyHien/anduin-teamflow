@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {days,roles,recommend,validateSquad,utilization} from '../dist/engine.js';
+const fixture=()=>({people:roles.map((role,i)=>({id:String(i),name:role,role,level:2,skills:['Reporting'],capacity:8,leave:[]})),projects:[]});
+const project=()=>({id:'new',start:'2026-11-02',end:'2026-11-06',level:2,skill:'Reporting',effort:Object.fromEntries(roles.map(r=>[r,20])),assignments:[]});
+test('working days exclude weekends and reversed windows',()=>{assert.equal(days('2026-11-06','2026-11-09').length,2);assert.equal(days('2026-11-09','2026-11-06').length,0)});
+test('feasible squad meets every discipline and effort requirement',()=>{const s=fixture(),p=project();const a=recommend(s,p).map(r=>({role:r.role,personId:r.selected,hours:r.hours}));assert.equal(validateSquad(s,p,a),null);assert.equal(a.length,4)});
+test('one day of leave prevents a constant daily assignment',()=>{const s=fixture();s.people[2].leave=[{start:'2026-11-04',end:'2026-11-04'}];assert.equal(recommend(s,project())[2].selected,'')});
+test('existing overlapping work prevents overbooking',()=>{const s=fixture();s.projects=[{...project(),id:'old',assignments:[{personId:'0',role:roles[0],hours:6}]}];assert.equal(recommend(s,project())[0].selected,'')});
+test('replanning excludes its own committed allocations',()=>{const s=fixture(),p=project();p.assignments=roles.map((role,i)=>({role,personId:String(i),hours:6}));s.projects=[p];assert.ok(recommend(s,p).every(r=>r.selected!==''))});
+test('minimum expertise is a hard constraint',()=>{const s=fixture(),p=project();p.level=3;assert.ok(recommend(s,p).every(r=>!r.selected))});
+test('daily conflicts are visible even with low average utilization',()=>{const s=fixture();s.people[0].leave=[{start:'2026-11-02',end:'2026-11-02'}];s.projects=[{...project(),assignments:[{personId:'0',role:roles[0],hours:2}]}];const u=utilization(s,s.people[0],'2026-11-02','2026-11-06');assert.equal(u.conflicts,1);assert.ok(u.percent<100)});
+test('apply rejects manually supplied infeasible and incomplete squads',()=>{const s=fixture(),p=project();assert.ok(validateSquad(s,p,[]));const a=roles.map((role,i)=>({role,personId:String(i),hours:9}));assert.match(validateSquad(s,p,a),/capacity conflict/)});
+test('domain fit ranks ahead of a nonmatching equally available candidate',()=>{const s=fixture();s.people.push({...s.people[0],id:'alt',name:'Alternative',skills:[]});assert.equal(recommend(s,project())[0].selected,'0')});
+test('weekend-only windows cannot produce a squad',()=>{const s=fixture(),p={...project(),start:'2026-11-07',end:'2026-11-08'};assert.ok(recommend(s,p).every(r=>!r.selected))});
