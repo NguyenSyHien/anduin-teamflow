@@ -1,5 +1,9 @@
 # Teamflow
 
+Live demo: https://anduin-teamflow.adored-char-2796.chatgpt.site
+
+Public repository: https://github.com/NguyenSyHien/anduin-teamflow
+
 A capacity-aware squad planner built for the Anduin AI Business Associate take-home assignment. Fictional people and customers; not an official Anduin product.
 
 ## Run locally
