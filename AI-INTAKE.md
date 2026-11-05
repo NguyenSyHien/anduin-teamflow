@@ -1,22 +1,17 @@
-# AI staffing intake
+# OpenAI staffing intake
 
-New project → customer brief → AI role draft → production lead review → semantic squad matching → assignment approval.
+Customer brief → server-side OpenAI draft → lead review → semantic matching → separate squad approval.
 
-The app runs `HuggingFaceTB/SmolLM2-360M-Instruct` with Transformers.js 3.8.1 in a dedicated browser worker using quantized WASM inference. This is actual generative inference, separate from MiniLM candidate ranking. The first download is approximately 365 MB plus runtime; a supported desktop browser and sufficient memory are recommended. Downloads are cached when the browser permits. Generation can take minutes. There is no API key or inference bill. Customer brief text is processed on the visitor's device; model/runtime hosts receive ordinary download requests.
+The Sites Worker calls the Responses API with gpt-4.1-mini-2025-04-14, a strict JSON schema and store:false. It validates roles, duplicates and bounded descriptions again before returning a proposal. Only the brief is sent to OpenAI. The API key exists only in ignored local environment files and the hosted runtime secret, never public assets. Model output is a proposal, not verified project facts.
 
-The model proposes a subset of Project manager, Analyst, Engineer and QA, with responsibilities and reasons. Output is parsed and checked for supported roles, duplicates and bounded nonempty descriptions. The small model is asked for a numbered role outline; only explicit supported role headings are accepted. The original outline remains visible and exportable. Its role descriptions supply proposed coverage; the UI explains when reasons repeat that coverage. Structured JSON responses are also supported. No role is inferred by keyword rules when parsing fails. Invalid output, a worker error or a five-minute timeout preserves the brief and offers retry/manual planning. No template is silently represented as AI output. Cancel terminates inference and stale messages cannot replace a newer dialog.
+The lead can add/remove the four supported role types, edit responsibilities and mandatory skills, and confirm dates, expertise and effort. Unknown dates and effort remain empty. Questions and assumptions now come from the model. Original proposals and approval snapshots remain in local workspace export. Existing SmolLM-era proposals remain readable.
 
-The lead may add/remove any of the four supported role types, edit responsibilities and mandatory skills, and must confirm dates, positive effort, expertise, reviewer name and the review checkbox before matching. Effort and dates are not invented by the model. The questions and assumptions shown below the proposal are a fixed review checklist, not model-generated fact extraction. Priority, domain and expertise have visible editable defaults. One specialist per selected role and even hours per working day remain MVP assumptions.
+Errors preserve the brief and offer manual planning. Requests are limited to 2,000 characters with bounded bodies, 1,800 output tokens and a 45-second provider timeout. Same-origin checks and best-effort per-isolate limits (10 requests per IP/hour, 100 total/hour) reduce casual abuse; these are not authentication or a global spending cap. This public demo's API calls use the owner's API billing. Production should add authenticated access, durable quotas and shared storage. Reviewer names remain self-reported and local history is not tamper-proof.
 
-Approving requirements saves the project without assigning people. Applying the recommended squad is a separate action with independent feasibility validation. Saving changed requirements as a draft clears that project's old allocations; the UI explains this before saving. Changes invalidate prior approval. Original brief, model proposal and approval snapshots/notes are retained in the project and workspace JSON export.
+## Local run
 
-This is a browser-local take-home prototype. Reviewer names are self-reported, not authenticated; approval history is not tamper-proof. Production use needs shared storage, authenticated lead permissions, durable audit events, model evaluation and richer staffing structures. A small general-purpose model can omit relevant work or suggest unnecessary roles; lead review is essential. Do not interpret a structured response as verified expertise or guaranteed delivery.
+Keep OPENAI_API_KEY in .env.local, then run npm run build and node --env-file=.env.local server.mjs. The build embeds only an allowlist of public assets into a Worker ESM bundle. Never serve the repository root.
 
-## Evaluation
+## Validation
 
-Use representative customer briefs, have production leads independently define necessary roles, then measure role omission, unnecessary roles, reviewer edit rate, valid-output rate and time to approved staffing. Evaluate staffing generation separately from candidate relevance and scheduling feasibility. Existing scheduling constraints are enforced regardless of AI suggestions.
-
-## Sources
-
-- https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct
-- https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct/tree/main/onnx
+32 automated tests pass. A live request using the fictional investor-data migration brief returned Project manager, Engineer and QA, with five clarification questions. Assess omission and unnecessary-role rates on representative briefs with production leads before relying on the suggestions in production.

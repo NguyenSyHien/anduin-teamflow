@@ -26,3 +26,8 @@ These checks establish implementation behavior, not business accuracy. Productio
 - Browser verified: manual intake; removing three roles; blocking approval without review confirmation; approving a single-Analyst plan; real MiniLM ranking; applying the squad; changing effort and saving causes Needs review and clears allocations; unscheduled drafts survive reload.
 - SmolLM2 downloaded and performed actual inference in the browser. It returned a readable four-role outline for the investor migration brief; its initial JSON-format contract was unreliable. An explicit-heading outline parser was added and tested. Later outline runs still failed validation; the latest diagnostic browser check was blocked by the automatic approval review account usage limit. Successful end-to-end AI intake generation remains unverified and is a release limitation. Do not represent this as a fully verified AI intake release.
 - Approval names are self-reported in the demo. Browser-only storage and the fixed November overview are unchanged limitations.
+
+
+## OpenAI integration — November 5, 2026
+
+Supersedes the local drafting failure above. 32 tests pass. The actual server handler returned HTTP 200 with a validated structured staffing proposal and scope questions from OpenAI for the migration example. Key presence was verified without displaying it, and the hosted secret was configured. Browser QA of this replacement has not yet been completed.

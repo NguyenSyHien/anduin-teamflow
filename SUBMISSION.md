@@ -29,4 +29,4 @@ Run a two-week shadow pilot with production leads, compare recommended squads ag
 
 ## AI staffing intake
 
-Customer brief → on-device SmolLM2 staffing draft → production lead edits and approval → MiniLM candidate matching → separate assignment approval. Selected roles are configurable; unknown effort remains for the lead to estimate. Original proposals and approval snapshots are included in workspace export. See AI-INTAKE.md for design, evaluation and limitations.
+Customer brief → server-side OpenAI staffing draft → production lead edits and approval → MiniLM candidate matching → separate assignment approval. Selected roles are configurable; unknown effort remains for the lead to estimate. Original proposals and approval snapshots are included in workspace export. See AI-INTAKE.md for design, evaluation and limitations.

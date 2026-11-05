@@ -6,9 +6,9 @@ Public repository: https://github.com/NguyenSyHien/anduin-teamflow
 
 ## AI staffing intake
 
-Choose **New project**, paste the customer request, and select **Draft roles with AI**. The local SmolLM2 language model proposes roles, responsibilities and reasons. The production lead edits the plan, confirms dates and effort, then approves requirements. MiniLM recommends people only after that review; applying the squad remains a separate action. Required roles are configurable. Manual planning is explicitly labeled.
+Choose **New project**, enter the customer request, and select **Draft roles with AI**. A server-side OpenAI Responses API request returns roles, responsibilities, reasons, scope questions and assumptions using a strict schema. The lead edits the draft and confirms dates and effort before matching people. Applying the squad remains a separate approval.
 
-First AI intake use downloads approximately 365 MB plus runtime and can take several minutes. No API key is needed. See [AI-INTAKE.md](AI-INTAKE.md) for architecture and prototype limits.
+`OPENAI_API_KEY` belongs in ignored `.env.local` for local development and a Sites runtime secret in production. Never put it in browser code. The brief is sent to OpenAI; specialist profiles remain local for MiniLM matching. See [AI-INTAKE.md](AI-INTAKE.md).
 
 ## Core feature: semantic squad matching
 
@@ -22,10 +22,11 @@ A capacity-aware squad planner built for the Anduin AI Business Associate take-h
 
 ## Run locally
 
-Requires Node.js 20 or newer. No dependency installation or API keys required.
+Requires Node.js 20 or newer. No dependency installation is required. AI intake requires a server-side OPENAI_API_KEY.
 
 ```sh
-npm start
+npm run build
+node --env-file=.env.local server.mjs
 ```
 
 Open http://127.0.0.1:4173. Run `npm test` for scheduling checks and `npm run build` to validate the static deployment bundle.

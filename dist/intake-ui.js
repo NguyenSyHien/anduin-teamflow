@@ -28,7 +28,7 @@ export function createIntakeUI({
     const proposal = p.staffing?.proposal;
     if (!proposal)
       return '<div class="notice">Select only the roles this project needs. Confirm effort before approving.</div>';
-    return `<div class="notice"><strong>${p.staffing.source === "ai" ? "AI staffing draft · production lead review" : "Manual staffing plan"}</strong><p>${p.staffing.source === "ai" ? "Generated locally by SmolLM2. Review all suggestions; the model can miss work or propose unnecessary roles." : "No AI inference was used for this plan."}</p></div>
+    return `<div class="notice"><strong>${p.staffing.source === "ai" ? "AI staffing draft · production lead review" : "Manual staffing plan"}</strong><p>${p.staffing.source === "ai" ? "Drafted with OpenAI. Review all suggestions; AI can miss work or propose unnecessary roles." : "No AI inference was used for this plan."}</p></div>
     <details class="candidate-details" open><summary>Original proposal & review checklist</summary>${proposal.roles.map((r) => `<p><b>${esc(r.role)}</b> · ${esc(r.reason)}<br><span class="muted">${esc(r.responsibility)}</span></p>`).join("")}<h3>Questions to resolve</h3>${list(proposal.questions || reviewQuestions)}${list(proposal.assumptions || [])}</details>
     ${proposal.rawText ? `<details class="candidate-details"><summary>Original AI outline</summary><p style="white-space:pre-wrap">${esc(proposal.rawText)}</p></details>` : ""}
     ${p.staffing.history?.length ? `<details><summary>Approval history (${p.staffing.history.length})</summary>${p.staffing.history.map((a) => `<p>${esc(a.reviewer)} · ${esc(a.at)}<br>${esc(a.notes)}</p>`).join("")}</details>` : ""}`;
@@ -177,7 +177,7 @@ export function createIntakeUI({
     modal(`<div class="dialog-head"><div><span class="tag">01 Brief → 02 Lead review → 03 Squad</span><h2 id="dialog-title">Start with the customer’s words.</h2><p>Turn a request into a staffing draft. You decide what gets approved.</p></div><button data-close aria-label="Close">×</button></div><form id="intake-form">
     <label class="field">Customer request<textarea name="brief" required minlength="20" maxlength="2000" rows="6" placeholder="We need to migrate our investor data into a new platform by December 18.">${esc(saved.brief || "")}</textarea></label>
     <div class="form-grid"><label class="field">Project name<input name="name" required maxlength="100" value="${esc(saved.name || "")}" placeholder="Investor data migration"></label><label class="field">Customer<input name="client" required maxlength="100" value="${esc(saved.client || "")}" placeholder="Atlas Capital"></label></div>
-    <div class="notice"><strong>AI suggests. Your production lead decides.</strong><p>Drafting runs on your device. First use downloads about 365 MB plus runtime and can take several minutes. Dates and hours require your confirmation.</p></div><div id="intake-error" role="alert"></div><div class="form-actions"><button type="button" id="manual-intake">Plan manually</button><button class="primary">Draft roles with AI ✧</button></div></form>`);
+    <div class="notice"><strong>AI suggests. Your production lead decides.</strong><p>Your brief is sent securely to OpenAI to suggest roles and scope questions. No model download is needed. Dates and hours require your confirmation.</p></div><div id="intake-error" role="alert"></div><div class="form-actions"><button type="button" id="manual-intake">Plan manually</button><button class="primary">Draft roles with AI ✧</button></div></form>`);
     const form = $("#intake-form"),
       read = () => Object.fromEntries(new FormData(form));
     $("#manual-intake").onclick = () => {
@@ -203,7 +203,7 @@ export function createIntakeUI({
       e.preventDefault();
       const data = read();
       modal(
-        `<div class="dialog-head"><div><span class="tag">AI staffing draft</span><h2 id="dialog-title">Understanding the work.</h2></div><button data-close aria-label="Close">×</button></div><div class="matching-loader"><span class="spinner"></span><strong id="intake-progress" role="status">Preparing the local language model…</strong><p>No people will be assigned. You will review every suggested role.</p></div><div class="form-actions"><button id="cancel-intake">Back to brief</button></div>`,
+        `<div class="dialog-head"><div><span class="tag">AI staffing draft</span><h2 id="dialog-title">Understanding the work.</h2></div><button data-close aria-label="Close">×</button></div><div class="matching-loader"><span class="spinner"></span><strong id="intake-progress" role="status">Connecting to the staffing assistant…</strong><p>No people will be assigned. You will review every suggested role.</p></div><div class="form-actions"><button id="cancel-intake">Back to brief</button></div>`,
       );
       const dialog = $("#modal").firstElementChild;
       $("#cancel-intake").onclick = () => {
