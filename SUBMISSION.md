@@ -6,15 +6,15 @@ The coordination bottleneck is the lack of a common model connecting demand (dis
 
 ## Proposed solution
 
-Teamflow connects project intake, a capacity heatmap, explainable squad recommendations and scenario replanning. A human reviews each suggestion. The application refuses infeasible assignments and shows how leave affects work already committed.
+Teamflow connects project intake, a capacity heatmap, ML semantic squad recommendations and scenario replanning. A pretrained MiniLM sentence encoder compares role requirements with editable specialist experience and skill descriptions. A human reviews each suggestion, its score breakdown and the rules baseline. The application refuses infeasible assignments and shows how leave affects committed work.
 
 ## Why this scope
 
-The prototype makes the main decision loop testable without accounts or API keys. Deterministic constraints are more dependable than asking a language model to invent allocations. AI can later help interpret intake, estimate effort and communicate trade-offs while the scheduling engine enforces feasibility.
+The prototype makes the main decision loop testable without accounts or API keys. Semantic inference runs locally in a browser worker, while explicit constraints enforce qualifications and daily feasibility. The model helps interpret related expertise; it never invents allocations or overrides availability. Profile text is not sent to an inference service.
 
 ## Validation and trade-offs
 
-Automated tests cover working days, daily capacity, expertise, domain ranking, leave, incomplete squads, and replanning without double-counting. The MVP does not globally optimize across all projects, split a role among people, or estimate productivity from historical data. Local browser persistence makes the demo easy to evaluate but is not a multi-user production architecture.
+Automated tests cover scheduling, cosine similarity, weighted scores, required skills, migration and ML ranking without constraint bypass. Browser verification exercises real pretrained-model inference and compares it with the baseline. The model is not trained on Anduin outcomes, and ranking weights need validation by production leads. The MVP does not globally optimize across projects, split roles among people, or estimate productivity from historical data. Local browser persistence is not a multi-user production architecture.
 
 ## Business impact to measure
 
@@ -26,3 +26,7 @@ Automated tests cover working days, daily capacity, expertise, domain ranking, l
 ## Suggested next experiment
 
 Run a two-week shadow pilot with production leads, compare recommended squads against actual decisions, and capture effort estimate error and override reasons. Use those observations to tune constraints and ranking before automating any decisions.
+
+## AI staffing intake
+
+Customer brief → on-device SmolLM2 staffing draft → production lead edits and approval → MiniLM candidate matching → separate assignment approval. Selected roles are configurable; unknown effort remains for the lead to estimate. Original proposals and approval snapshots are included in workspace export. See AI-INTAKE.md for design, evaluation and limitations.

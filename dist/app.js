@@ -1,32 +1,617 @@
-import {roles,days,capacity,load,utilization,recommend,validateSquad} from './engine.js';
-const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const base='2026-11-02',end='2026-11-27';
-const seed=()=>({people:[['Ava Chen',0,3,['Fund operations','Onboarding']],['Noah Williams',0,2,['Reporting']],['Olivia Park',1,3,['Fund operations','Reporting']],['Liam Nguyen',1,2,['Onboarding']],['Emma Wilson',2,3,['Fund operations','Onboarding']],['Ethan Brooks',2,2,['Reporting']],['Sophia Patel',3,3,['Fund operations']],['Lucas Martin',3,2,['Onboarding','Reporting']]].map(([name,r,level,skills],i)=>({id:'u'+i,name,role:roles[r],level,skills,capacity:8,leave:i===4?[{start:'2026-11-12',end:'2026-11-13'}]:[]})),projects:[{id:'p1',name:'Northstar fund onboarding',client:'Northstar Capital',skill:'Onboarding',level:2,start:base,end:'2026-11-13',priority:'High',effort:{'Project manager':30,Analyst:50,Engineer:60,QA:30},assignments:[{role:roles[0],personId:'u0',hours:3},{role:roles[1],personId:'u3',hours:5},{role:roles[2],personId:'u4',hours:6},{role:roles[3],personId:'u7',hours:3}]},{id:'p2',name:'Investor reporting portal',client:'Meridian Partners',skill:'Reporting',level:2,start:'2026-11-09',end:'2026-11-27',priority:'Medium',effort:{'Project manager':30,Analyst:60,Engineer:90,QA:60},assignments:[{role:roles[0],personId:'u1',hours:2},{role:roles[1],personId:'u2',hours:4},{role:roles[2],personId:'u5',hours:6},{role:roles[3],personId:'u6',hours:4}]},{id:'p3',name:'Atlas subscription workflow',client:'Atlas Ventures',skill:'Fund operations',level:2,start:'2026-11-16',end:'2026-11-27',priority:'High',effort:{'Project manager':20,Analyst:40,Engineer:60,QA:30},assignments:[]},{id:'p4',name:'Quarter-end data migration',client:'Oakridge Investments',skill:'Reporting',level:2,start:'2026-11-02',end:'2026-11-06',priority:'Medium',effort:{'Project manager':10,Analyst:20,Engineer:25,QA:15},assignments:[]}],events:[]});
-let state;try{state=JSON.parse(localStorage.getItem('teamflow-v1'))||seed();if(!Array.isArray(state.people)||!Array.isArray(state.projects))throw Error()}catch{state=seed()}
-let view='Overview',filter='',statusFilter='All projects';
-function save(message){localStorage.setItem('teamflow-v1',JSON.stringify(state));if(message){state.events.unshift({text:message,time:new Date().toISOString()});state.events=state.events.slice(0,30);localStorage.setItem('teamflow-v1',JSON.stringify(state));toast(message)}render()}
-function toast(text){$('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>$('#toast').style.display='none',4500)}
-function initials(n){return n.split(' ').map(x=>x[0]).join('')}
-function fmt(d){return new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}
-function conflict(p){return p.assignments.some(a=>{const person=state.people.find(u=>u.id===a.personId);return days(p.start,p.end).some(d=>load(state,person.id,d)>capacity(person,d))})}
-function status(p){return !p.assignments.length?'Needs squad':conflict(p)?'At risk':'On track'}
-function badge(p){const s=status(p);return `<span class="tag ${s==='At risk'?'amber':s==='Needs squad'?'gray':''}">${s}</span>`}
-function person(p){return `<div class="person"><span class="avatar">${initials(p.name)}</span><div>${esc(p.name)}<small>${p.role}</small></div></div>`}
-function stats(){const us=state.people.map(p=>utilization(state,p,base,end));const used=us.reduce((s,u)=>s+u.used,0),cap=us.reduce((s,u)=>s+u.cap,0);return {pct:Math.round(used/cap*100),free:Math.round(cap-used),risk:state.projects.filter(conflict).length,pending:state.projects.filter(p=>!p.assignments.length).length}}
-function render(){const s=stats();$('#app').innerHTML=`<div class="shell"><aside class="sidebar"><div class="brand"><span class="mark">≋</span>teamflow<span style="color:#a9bd7d">.</span></div><div class="workspace"><span class="square">A</span><div>Anduin workspace<small style="display:block;color:#8b968d;font-size:10px;margin-top:3px">Production team</small></div><span style="margin-left:auto">⌄</span></div><div class="eyebrow">Workspace</div><nav class="nav">${[['Overview','▦'],['Projects','▱'],['Team','♧'],['Activity','◷'],['How it works','◈']].map(([v,i])=>`<button data-view="${v}" class="${view===v?'active':''}"><span class="navicon">${i}</span>${v}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="mini-card"><strong>Good work starts with balance.</strong><br><span style="color:#839077">Make room for your team to do their best work.</span></div><div class="profile"><span class="avatar">PL</span><div>Production lead<small style="display:block;color:#909b90;margin-top:3px">Demo workspace</small></div></div></div></aside><main class="main"><header class="topbar"><div>Workspace <span> / &nbsp;${view}</span></div><div><span class="dot"></span> Local demo <span class="hide-mobile">&nbsp; · &nbsp; Changes saved in this browser</span></div></header><div class="content">${view==='Overview'?overview(s):view==='Projects'?projects():view==='Team'?team():view==='Activity'?activity():guide()}<footer class="footer"><span>Teamflow · Thoughtful planning. Better outcomes.</span><span>Sample planning period · November 2026</span></footer></div></main></div>`;bind()}
-function heading(title,sub,actions=true){return `<div class="page-head"><div><h1>${title}</h1><p>${sub}</p></div>${actions?'<div class="actions"><button data-action="leave">＋ Add leave</button><button class="primary" data-action="new">＋ New project</button></div>':''}</div>`}
-function overview(s){return `${heading('A little clarity. A lot of possibility.','Your people, projects, and capacity — all in one place.')}<div class="metrics">${[['Active projects',state.projects.filter(p=>p.assignments.length).length,'▱',`${s.pending} projects ready to staff`],['Team utilization',`${s.pct}<small>%</small>`,'↗','Across the 4-week planning window'],['Available capacity',`${s.free}<small> hrs</small>`,'◷','Room for what comes next'],['Projects at risk',s.risk,'⚑',s.risk?'Capacity conflicts need attention':'All assigned projects look healthy']].map(([label,value,icon,note],i)=>`<div class="metric"><div class="metric-label">${label}<span>${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot ${i===3&&s.risk?'warn':''}">${note}</div></div>`).join('')}</div><section class="panel"><div class="panel-heading"><div><h2>Capacity at a glance</h2><div class="sub">See the pressure before it becomes a problem.</div></div><div class="actions"><div class="legend"><span><i></i>Available</span><span><i class="bal"></i>Balanced</span><span><i class="high"></i>Conflict</span></div><span class="tag gray">Nov 2 – 27, 2026</span></div></div><div class="heatmap"><div class="heatrow header"><span>TEAM MEMBER</span><span>NOV 2 – 6</span><span>NOV 9 – 13</span><span>NOV 16 – 20</span><span>NOV 23 – 27</span><span>4-WK AVG.</span></div>${state.people.map(p=>`<div class="heatrow">${person(p)}${[['2026-11-02','2026-11-06'],['2026-11-09','2026-11-13'],['2026-11-16','2026-11-20'],['2026-11-23','2026-11-27']].map(([a,b])=>{const u=utilization(state,p,a,b);return `<div class="cell ${u.conflicts?'over':u.percent>65?'busy':u.percent>30?'medium':''}" title="${u.used} booked hours / ${u.cap} available hours; ${u.conflicts} days with conflicts">${u.percent}% ${u.conflicts?'⚑':''}</div>`}).join('')}<span style="font-size:11px;color:#809078">${utilization(state,p,base,end).percent}%</span></div>`).join('')}</div><div class="heat-foot"><span>8 specialists · 4 disciplines · Weekdays only</span><span>⚑ Daily capacity conflict</span></div></section><div class="lower"><section class="panel"><div class="panel-heading"><div><h2>Projects in motion</h2><div class="sub">The next great thing starts with the right people.</div></div><button class="link-button" data-view="Projects">View all ↗</button></div>${state.projects.slice(0,4).map(p=>`<div class="project-row"><div class="project-icon">▱</div><div class="project-info"><strong>${esc(p.name)}</strong><p>${esc(p.client)} &nbsp;·&nbsp; Due ${fmt(p.end)}</p></div>${badge(p)}<button class="link-button" data-plan="${p.id}" aria-label="Plan ${esc(p.name)}">↗</button></div>`).join('')}</section><section class="panel"><div class="panel-heading"><div><h2><span style="color:#829e54">✧</span> Planning insights</h2><div class="sub">A heads-up, so you can stay a step ahead.</div></div></div>${state.projects.filter(conflict).slice(0,1).map(p=>`<div class="insight"><span>⚑</span><div><strong>A schedule needs a second look</strong><p>${esc(p.name)} has a daily capacity or leave conflict.</p><button class="link-button" data-plan="${p.id}">Review squad →</button></div></div>`).join('')}<div class="insight green"><span>✧</span><div><strong>${s.pending?`${s.pending} projects are waiting for their team`:'Your squads are ready'}</strong><p>Match expertise with available capacity. Review every recommendation before applying.</p><button class="link-button" data-action="next">${s.pending?'Find the right squad':'Review projects'} →</button></div></div></section></div>`}
-function projects(){const list=state.projects.filter(p=>(p.name+' '+p.client).toLowerCase().includes(filter.toLowerCase())&&(statusFilter==='All projects'||status(p)===statusFilter));return `${heading('The work ahead.','Build the right squad for every customer project.')}<div class="toolbar"><input id="search" aria-label="Search projects" placeholder="Search projects or customers…" value="${esc(filter)}"><select id="status-filter" aria-label="Filter project status">${['All projects','Needs squad','On track','At risk'].map(x=>`<option ${x===statusFilter?'selected':''}>${x}</option>`).join('')}</select></div><section class="panel table-wrap"><table><thead><tr><th>PROJECT / CUSTOMER</th><th>WINDOW</th><th>EXPERTISE</th><th>PRIORITY</th><th>STATUS</th><th></th></tr></thead><tbody>${list.map(p=>`<tr><td><strong>${esc(p.name)}</strong><p>${esc(p.client)}</p></td><td>${fmt(p.start)} – ${fmt(p.end)}</td><td>${p.skill}<p>Level ${p.level}+ · ${Object.values(p.effort).reduce((a,b)=>a+b,0)} hrs</p></td><td>${p.priority}</td><td>${badge(p)}</td><td><button data-plan="${p.id}">Plan squad ↗</button></td></tr>`).join('')}</tbody></table>${!list.length?'<div class="empty">No projects match this view.</div>':''}</section>`}
-function team(){return `${heading('People first. Always.','A shared view of expertise, availability, and the space to do good work.')}<div class="cards">${state.people.map(p=>{const u=utilization(state,p,base,end);return `<article class="teamcard">${person(p)}<span class="tag gray">${['','Developing','Experienced','Senior'][p.level]} · ${p.capacity}h / day</span><div class="chips">${p.skills.map(s=>`<span class="tag">${s}</span>`).join('')}</div><p>${u.used}h booked / ${u.cap}h available</p><div class="bar"><span style="width:${Math.min(100,u.percent)}%"></span></div><p>${u.percent}% utilization ${u.conflicts?'· '+u.conflicts+' conflict days':''}</p>${p.leave.map((l,i)=>`<p style="margin-top:10px">Away ${fmt(l.start)} – ${fmt(l.end)} <button class="link-button" data-remove-leave="${p.id}:${i}" aria-label="Remove leave for ${p.name}">Remove</button></p>`).join('')}<button style="margin-top:15px" data-person-leave="${p.id}">Manage availability</button></article>`}).join('')}</div><div style="height:24px"></div>`}
-function activity(){return `${heading('Every decision, in view.','A local history of staffing and availability changes.',false)}<section class="panel">${state.events.length?state.events.map(e=>`<div class="project-row"><span class="avatar">✓</span><div class="project-info"><strong>${esc(e.text)}</strong><p>${new Date(e.time).toLocaleString()}</p></div></div>`).join(''):'<div class="empty">Your first planning decision will appear here.</div>'}</section><div class="actions" style="margin-bottom:30px"><button data-action="export">Export workspace JSON</button><button data-action="reset">Reset demo data</button></div>`}
-function guide(){return `${heading('A planner you can explain.','Clear rules, visible trade-offs, and a human in control.',false)}<div class="steps"><div class="step"><h2>01 / Capture the work</h2><p>Set a project window, domain, minimum expertise level, priority, and effort in hours for each of four disciplines. Project size is represented by effort. One specialist per role forms the squad.</p></div><div class="step"><h2>02 / Find a feasible squad</h2><p>The deterministic recommendation engine spreads each role’s effort evenly across working days. It checks every day against existing bookings and leave, and filters for role and minimum expertise. Candidates are ranked by domain match (40 points), average spare capacity (up to 40), and seniority above the minimum (5 per level).</p></div><div class="step"><h2>03 / Review, then apply</h2><p>Inspect alternative specialists and the reason for each match. No feasible candidate? The tool leaves the slot unfilled. Adjust dates or effort instead of silently overbooking. Priority helps humans triage; it does not preempt existing work.</p></div><div class="step"><h2>04 / Adapt when plans change</h2><p>Add leave to reveal affected projects immediately. Reopen a project, change its window or effort, and preview a replacement squad before applying. A failed or cancelled plan never changes committed allocations.</p></div><div class="step"><h2>Prototype boundaries & next steps</h2><p>This is a browser-local decision-support prototype with fictional data. It uses explainable optimization rules, not a live LLM. No data is sent to an AI service. Production evolution: shared database, authentication, audit controls, calendar integrations, holiday calendars, partial-day leave, multi-person roles, and global optimization. Track on-time delivery, overload days, time to staff, and utilization variance to measure value.</p></div></div><div style="height:24px"></div>`}
-function bind(){document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;render()});document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>action(b.dataset.action));document.querySelectorAll('[data-plan]').forEach(b=>b.onclick=()=>projectDialog(b.dataset.plan));document.querySelectorAll('[data-person-leave]').forEach(b=>b.onclick=()=>leaveDialog(b.dataset.personLeave));document.querySelectorAll('[data-remove-leave]').forEach(b=>b.onclick=()=>{const [id,i]=b.dataset.removeLeave.split(':');const p=state.people.find(p=>p.id===id);p.leave.splice(+i,1);save('Removed leave for '+p.name)});if($('#search'))$('#search').oninput=e=>{const pos=e.target.selectionStart;filter=e.target.value;render();$('#search').focus();$('#search').setSelectionRange(pos,pos)};if($('#status-filter'))$('#status-filter').onchange=e=>{statusFilter=e.target.value;render()}}
+import {
+  roles,
+  projectRoles,
+  days,
+  capacity,
+  load,
+  utilization,
+  recommend,
+  validateSquad,
+} from "./engine.js";
+import {
+  MODEL_ID,
+  migrateWorkspace,
+  defaultRequirements,
+} from "./semantic-core.js";
+import { matchWorkspace, cancelMatching } from "./semantic-client.js";
+import { createIntakeUI } from "./intake-ui.js";
+import { cancelIntake } from "./intake-client.js";
+const $ = (s) => document.querySelector(s),
+  esc = (s) =>
+    String(s).replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c],
+    );
+const base = "2026-11-02",
+  end = "2026-11-27";
+const seed = () => ({
+  people: [
+    ["Ava Chen", 0, 3, ["Fund operations", "Onboarding"]],
+    ["Noah Williams", 0, 2, ["Reporting"]],
+    ["Olivia Park", 1, 3, ["Fund operations", "Reporting"]],
+    ["Liam Nguyen", 1, 2, ["Onboarding"]],
+    ["Emma Wilson", 2, 3, ["Fund operations", "Onboarding"]],
+    ["Ethan Brooks", 2, 2, ["Reporting"]],
+    ["Sophia Patel", 3, 3, ["Fund operations"]],
+    ["Lucas Martin", 3, 2, ["Onboarding", "Reporting"]],
+  ].map(([name, r, level, skills], i) => ({
+    id: "u" + i,
+    name,
+    role: roles[r],
+    level,
+    skills,
+    capacity: 8,
+    leave: i === 4 ? [{ start: "2026-11-12", end: "2026-11-13" }] : [],
+  })),
+  projects: [
+    {
+      id: "p1",
+      name: "Northstar fund onboarding",
+      client: "Northstar Capital",
+      skill: "Onboarding",
+      level: 2,
+      start: base,
+      end: "2026-11-13",
+      priority: "High",
+      effort: { "Project manager": 30, Analyst: 50, Engineer: 60, QA: 30 },
+      assignments: [
+        { role: roles[0], personId: "u0", hours: 3 },
+        { role: roles[1], personId: "u3", hours: 5 },
+        { role: roles[2], personId: "u4", hours: 6 },
+        { role: roles[3], personId: "u7", hours: 3 },
+      ],
+    },
+    {
+      id: "p2",
+      name: "Investor reporting portal",
+      client: "Meridian Partners",
+      skill: "Reporting",
+      level: 2,
+      start: "2026-11-09",
+      end: "2026-11-27",
+      priority: "Medium",
+      effort: { "Project manager": 30, Analyst: 60, Engineer: 90, QA: 60 },
+      assignments: [
+        { role: roles[0], personId: "u1", hours: 2 },
+        { role: roles[1], personId: "u2", hours: 4 },
+        { role: roles[2], personId: "u5", hours: 6 },
+        { role: roles[3], personId: "u6", hours: 4 },
+      ],
+    },
+    {
+      id: "p3",
+      name: "Atlas subscription workflow",
+      client: "Atlas Ventures",
+      skill: "Fund operations",
+      level: 2,
+      start: "2026-11-16",
+      end: "2026-11-27",
+      priority: "High",
+      effort: { "Project manager": 20, Analyst: 40, Engineer: 60, QA: 30 },
+      assignments: [],
+    },
+    {
+      id: "p4",
+      name: "Quarter-end data migration",
+      client: "Oakridge Investments",
+      skill: "Reporting",
+      level: 2,
+      start: "2026-11-02",
+      end: "2026-11-06",
+      priority: "Medium",
+      effort: { "Project manager": 10, Analyst: 20, Engineer: 25, QA: 15 },
+      assignments: [],
+    },
+  ],
+  events: [],
+});
+let state;
+try {
+  state = JSON.parse(localStorage.getItem("teamflow-v1")) || seed();
+  if (!Array.isArray(state.people) || !Array.isArray(state.projects))
+    throw Error();
+} catch {
+  state = seed();
+}
+migrateWorkspace(state);
+let view = "Overview",
+  filter = "",
+  statusFilter = "All projects";
+function save(message) {
+  localStorage.setItem("teamflow-v1", JSON.stringify(state));
+  if (message) {
+    state.events.unshift({ text: message, time: new Date().toISOString() });
+    state.events = state.events.slice(0, 30);
+    localStorage.setItem("teamflow-v1", JSON.stringify(state));
+    toast(message);
+  }
+  render();
+}
+function toast(text) {
+  $("#toast").textContent = text;
+  $("#toast").style.display = "block";
+  clearTimeout(window.toastTimer);
+  window.toastTimer = setTimeout(
+    () => ($("#toast").style.display = "none"),
+    4500,
+  );
+}
+function initials(n) {
+  return n
+    .split(" ")
+    .map((x) => x[0])
+    .join("");
+}
+function fmt(d) {
+  if (!d) return "Not confirmed";
+  return new Date(d + "T12:00:00Z").toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+function conflict(p) {
+  return (
+    p.assignments.length > 0 && Boolean(validateSquad(state, p, p.assignments))
+  );
+}
+function status(p) {
+  return p.staffing?.status === "draft"
+    ? "Needs review"
+    : !p.assignments.length
+      ? "Needs squad"
+      : conflict(p)
+        ? "At risk"
+        : "On track";
+}
+function badge(p) {
+  const s = status(p);
+  return `<span class="tag ${s === "At risk" ? "amber" : s === "Needs squad" ? "gray" : ""}">${s}</span>`;
+}
+function person(p) {
+  return `<div class="person"><span class="avatar">${initials(p.name)}</span><div>${esc(p.name)}<small>${p.role}</small></div></div>`;
+}
+function stats() {
+  const us = state.people.map((p) => utilization(state, p, base, end));
+  const used = us.reduce((s, u) => s + u.used, 0),
+    cap = us.reduce((s, u) => s + u.cap, 0);
+  return {
+    pct: Math.round((used / cap) * 100),
+    free: Math.round(cap - used),
+    risk: state.projects.filter(conflict).length,
+    pending: state.projects.filter((p) => !p.assignments.length).length,
+  };
+}
+function render() {
+  const s = stats();
+  $("#app").innerHTML =
+    `<div class="shell"><aside class="sidebar"><div class="brand"><span class="mark">≋</span>teamflow<span style="color:#a9bd7d">.</span></div><div class="workspace"><span class="square">A</span><div>Anduin workspace<small style="display:block;color:#8b968d;font-size:10px;margin-top:3px">Production team</small></div><span style="margin-left:auto">⌄</span></div><div class="eyebrow">Workspace</div><nav class="nav">${[
+      ["Overview", "▦"],
+      ["Matching", "✧"],
+      ["Projects", "▱"],
+      ["Team", "♧"],
+      ["Activity", "◷"],
+      ["How it works", "◈"],
+    ]
+      .map(
+        ([v, i]) =>
+          `<button data-view="${v}" class="${view === v ? "active" : ""}"><span class="navicon">${i}</span>${v}</button>`,
+      )
+      .join(
+        "",
+      )}</nav><div class="sidebar-bottom"><div class="mini-card"><strong>Good work starts with balance.</strong><br><span style="color:#839077">Make room for your team to do their best work.</span></div><div class="profile"><span class="avatar">PL</span><div>Production lead<small style="display:block;color:#909b90;margin-top:3px">Demo workspace</small></div></div></div></aside><main class="main"><header class="topbar"><div>Workspace <span> / &nbsp;${view}</span></div><div><span class="dot"></span> Local demo <span class="hide-mobile">&nbsp; · &nbsp; Changes saved in this browser</span></div></header><div class="content">${view === "Overview" ? overview(s) : view === "Matching" ? matchingPage() : view === "Projects" ? projects() : view === "Team" ? team() : view === "Activity" ? activity() : guide()}<footer class="footer"><span>Teamflow · Thoughtful planning. Better outcomes.</span><span>Sample planning period · November 2026</span></footer></div></main></div>`;
+  bind();
+}
+function heading(title, sub, actions = true) {
+  return `<div class="page-head"><div><h1>${title}</h1><p>${sub}</p></div>${actions ? '<div class="actions"><button data-action="leave">＋ Add leave</button><button class="primary" data-action="new">＋ New project</button></div>' : ""}</div>`;
+}
+function overview(s) {
+  return `${heading("A little clarity. A lot of possibility.", "Your people, projects, and capacity — all in one place.")}<div class="metrics">${[
+    [
+      "Active projects",
+      state.projects.filter((p) => p.assignments.length).length,
+      "▱",
+      `${s.pending} projects ready to staff`,
+    ],
+    [
+      "Team utilization",
+      `${s.pct}<small>%</small>`,
+      "↗",
+      "Across the 4-week planning window",
+    ],
+    [
+      "Available capacity",
+      `${s.free}<small> hrs</small>`,
+      "◷",
+      "Room for what comes next",
+    ],
+    [
+      "Projects at risk",
+      s.risk,
+      "⚑",
+      s.risk
+        ? "Capacity conflicts need attention"
+        : "All assigned projects look healthy",
+    ],
+  ]
+    .map(
+      ([label, value, icon, note], i) =>
+        `<div class="metric"><div class="metric-label">${label}<span>${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot ${i === 3 && s.risk ? "warn" : ""}">${note}</div></div>`,
+    )
+    .join(
+      "",
+    )}</div><section class="panel"><div class="panel-heading"><div><h2>Capacity at a glance</h2><div class="sub">See the pressure before it becomes a problem.</div></div><div class="actions"><div class="legend"><span><i></i>Available</span><span><i class="bal"></i>Balanced</span><span><i class="high"></i>Conflict</span></div><span class="tag gray">Nov 2 – 27, 2026</span></div></div><div class="heatmap"><div class="heatrow header"><span>TEAM MEMBER</span><span>NOV 2 – 6</span><span>NOV 9 – 13</span><span>NOV 16 – 20</span><span>NOV 23 – 27</span><span>4-WK AVG.</span></div>${state.people
+    .map(
+      (p) =>
+        `<div class="heatrow">${person(p)}${[
+          ["2026-11-02", "2026-11-06"],
+          ["2026-11-09", "2026-11-13"],
+          ["2026-11-16", "2026-11-20"],
+          ["2026-11-23", "2026-11-27"],
+        ]
+          .map(([a, b]) => {
+            const u = utilization(state, p, a, b);
+            return `<div class="cell ${u.conflicts ? "over" : u.percent > 65 ? "busy" : u.percent > 30 ? "medium" : ""}" title="${u.used} booked hours / ${u.cap} available hours; ${u.conflicts} days with conflicts">${u.percent}% ${u.conflicts ? "⚑" : ""}</div>`;
+          })
+          .join(
+            "",
+          )}<span style="font-size:11px;color:#809078">${utilization(state, p, base, end).percent}%</span></div>`,
+    )
+    .join(
+      "",
+    )}</div><div class="heat-foot"><span>8 specialists · 4 disciplines · Weekdays only</span><span>⚑ Daily capacity conflict</span></div></section><div class="lower"><section class="panel"><div class="panel-heading"><div><h2>Projects in motion</h2><div class="sub">The next great thing starts with the right people.</div></div><button class="link-button" data-view="Projects">View all ↗</button></div>${state.projects
+    .slice(0, 4)
+    .map(
+      (p) =>
+        `<div class="project-row"><div class="project-icon">▱</div><div class="project-info"><strong>${esc(p.name)}</strong><p>${esc(p.client)} &nbsp;·&nbsp; Due ${fmt(p.end)}</p></div>${badge(p)}<button class="link-button" data-plan="${p.id}" aria-label="Plan ${esc(p.name)}">↗</button></div>`,
+    )
+    .join(
+      "",
+    )}</section><section class="panel"><div class="panel-heading"><div><h2><span style="color:#829e54">✧</span> Planning insights</h2><div class="sub">A heads-up, so you can stay a step ahead.</div></div></div>${state.projects
+    .filter(conflict)
+    .slice(0, 1)
+    .map(
+      (p) =>
+        `<div class="insight"><span>⚑</span><div><strong>A schedule needs a second look</strong><p>${esc(p.name)} has a daily capacity or leave conflict.</p><button class="link-button" data-plan="${p.id}">Review squad →</button></div></div>`,
+    )
+    .join(
+      "",
+    )}<div class="insight green"><span>✧</span><div><strong>${s.pending ? `${s.pending} projects are waiting for their team` : "Your squads are ready"}</strong><p>Match expertise with available capacity. Review every recommendation before applying.</p><button class="link-button" data-action="next">${s.pending ? "Find the right squad" : "Review projects"} →</button></div></div></section></div>`;
+}
+function projects() {
+  const list = state.projects.filter(
+    (p) =>
+      (p.name + " " + p.client).toLowerCase().includes(filter.toLowerCase()) &&
+      (statusFilter === "All projects" || status(p) === statusFilter),
+  );
+  return `${heading("The work ahead.", "Build the right squad for every customer project.")}<div class="toolbar"><input id="search" aria-label="Search projects" placeholder="Search projects or customers…" value="${esc(filter)}"><select id="status-filter" aria-label="Filter project status">${["All projects", "Needs review", "Needs squad", "On track", "At risk"].map((x) => `<option ${x === statusFilter ? "selected" : ""}>${x}</option>`).join("")}</select></div><section class="panel table-wrap"><table><thead><tr><th>PROJECT / CUSTOMER</th><th>WINDOW</th><th>EXPERTISE</th><th>PRIORITY</th><th>STATUS</th><th></th></tr></thead><tbody>${list.map((p) => `<tr><td><strong>${esc(p.name)}</strong><p>${esc(p.client)}</p></td><td>${fmt(p.start)} – ${fmt(p.end)}</td><td>${p.skill}<p>Level ${p.level}+ · ${projectRoles(p).some(r => !p.effort[r]) ? "Effort pending" : projectRoles(p).reduce((sum,r) => sum + p.effort[r],0) + " hrs"}</p></td><td>${p.priority}</td><td>${badge(p)}</td><td><button data-plan="${p.id}">Plan squad ↗</button></td></tr>`).join("")}</tbody></table>${!list.length ? '<div class="empty">No projects match this view.</div>' : ""}</section>`;
+}
+function team() {
+  return `${heading("People first. Always.", "A shared view of expertise, availability, and the space to do good work.")}<div class="cards">${state.people
+    .map((p) => {
+      const u = utilization(state, p, base, end);
+      return `<article class="teamcard">${person(p)}<span class="tag gray">${["", "Developing", "Experienced", "Senior"][p.level]} · ${p.capacity}h / day</span><div class="chips">${p.skills.map((s) => `<span class="tag">${s}</span>`).join("")}</div><p>${u.used}h booked / ${u.cap}h available</p><div class="bar"><span style="width:${Math.min(100, u.percent)}%"></span></div><p>${u.percent}% utilization ${u.conflicts ? "· " + u.conflicts + " conflict days" : ""}</p>${p.leave.map((l, i) => `<p style="margin-top:10px">Away ${fmt(l.start)} – ${fmt(l.end)} <button class="link-button" data-remove-leave="${p.id}:${i}" aria-label="Remove leave for ${p.name}">Remove</button></p>`).join("")}<p class="profile-experience">${esc(p.experience)}</p><div class="chips">${p.capabilities.map((s) => `<span class="tag gray">${esc(s)}</span>`).join("")}</div><button data-profile="${p.id}">Edit expertise</button> <button style="margin-top:15px" data-person-leave="${p.id}">Manage availability</button></article>`;
+    })
+    .join("")}</div><div style="height:24px"></div>`;
+}
+function activity() {
+  return `${heading("Every decision, in view.", "A local history of staffing and availability changes.", false)}<section class="panel">${state.events.length ? state.events.map((e) => `<div class="project-row"><span class="avatar">✓</span><div class="project-info"><strong>${esc(e.text)}</strong><p>${new Date(e.time).toLocaleString()}</p></div></div>`).join("") : '<div class="empty">Your first planning decision will appear here.</div>'}</section><div class="actions" style="margin-bottom:30px"><button data-action="export">Export workspace JSON</button><button data-action="reset">Reset demo data</button></div>`;
+}
+function bind() {
+  document
+    .querySelectorAll("[data-profile]")
+    .forEach((b) => (b.onclick = () => profileDialog(b.dataset.profile)));
+  document.querySelectorAll("[data-view]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        view = b.dataset.view;
+        render();
+      }),
+  );
+  document
+    .querySelectorAll("[data-action]")
+    .forEach((b) => (b.onclick = () => action(b.dataset.action)));
+  document
+    .querySelectorAll("[data-plan]")
+    .forEach((b) => (b.onclick = () => projectDialog(b.dataset.plan)));
+  document
+    .querySelectorAll("[data-person-leave]")
+    .forEach((b) => (b.onclick = () => leaveDialog(b.dataset.personLeave)));
+  document.querySelectorAll("[data-remove-leave]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const [id, i] = b.dataset.removeLeave.split(":");
+        const p = state.people.find((p) => p.id === id);
+        p.leave.splice(+i, 1);
+        save("Removed leave for " + p.name);
+      }),
+  );
+  if ($("#search"))
+    $("#search").oninput = (e) => {
+      const pos = e.target.selectionStart;
+      filter = e.target.value;
+      render();
+      $("#search").focus();
+      $("#search").setSelectionRange(pos, pos);
+    };
+  if ($("#status-filter"))
+    $("#status-filter").onchange = (e) => {
+      statusFilter = e.target.value;
+      render();
+    };
+}
 let previousFocus;
-function modal(html,wide=false){previousFocus=document.activeElement;$('#modal').innerHTML=`<div class="overlay"><section class="dialog ${wide?'wide':''}" role="dialog" aria-modal="true" aria-labelledby="dialog-title">${html}</section></div>`;$('#modal').querySelectorAll('[data-close]').forEach(b=>b.onclick=close);$('#modal').querySelector('input,select,button')?.focus()}
-function close(){$('#modal').innerHTML='';previousFocus?.focus()}
-document.addEventListener('keydown',e=>{if(!$('#modal').firstChild)return;if(e.key==='Escape')close();if(e.key==='Tab'){const els=[...$('#modal').querySelectorAll('button:not(:disabled),input,select')];if(e.shiftKey&&document.activeElement===els[0]){e.preventDefault();els.at(-1).focus()}else if(!e.shiftKey&&document.activeElement===els.at(-1)){e.preventDefault();els[0].focus()}}});
-function action(a){if(a==='new')projectDialog();if(a==='leave')leaveDialog();if(a==='next'){const p=state.projects.find(p=>!p.assignments.length);if(p)projectDialog(p.id);else{view='Projects';render()}}if(a==='export'){const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='teamflow-workspace.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}if(a==='reset'){modal('<div class="dialog-head"><h2 id="dialog-title">Reset this workspace?</h2><button data-close aria-label="Close">×</button></div><p>This replaces your local edits with the original fictional demo data. Export your workspace first if you want to keep it.</p><div class="form-actions"><button data-close>Cancel</button><button class="primary" id="confirm-reset">Reset demo</button></div>');$('#confirm-reset').onclick=()=>{state=seed();save('Demo workspace reset');close()}}}
-function projectDialog(id){const existing=state.projects.find(p=>p.id===id);const p=existing?structuredClone(existing):{id:crypto.randomUUID(),name:'',client:'',start:base,end:'2026-11-13',skill:'Onboarding',level:2,priority:'Medium',effort:{'Project manager':20,Analyst:40,Engineer:60,QA:30},assignments:[]};modal(`<div class="dialog-head"><div><h2 id="dialog-title">${existing?'Plan your squad':'Make room for what’s next'}</h2><p>${existing?'Update the brief, then preview a feasible team.':'Tell us about the project. We’ll help find its people.'}</p></div><button data-close aria-label="Close">×</button></div><form id="project-form"><div class="form-grid"><label class="field full">Project name<input name="name" required maxlength="100" value="${esc(p.name)}" placeholder="e.g. Horizon investor onboarding"></label><label class="field full">Customer<input name="client" required maxlength="100" value="${esc(p.client)}" placeholder="Customer or fund name"></label><label class="field">Start date<input type="date" name="start" required min="2020-01-01" max="2035-12-31" value="${p.start}"></label><label class="field">Deadline<input type="date" name="end" required min="2020-01-01" max="2035-12-31" value="${p.end}"></label><label class="field">Domain<select name="skill">${['Onboarding','Fund operations','Reporting'].map(x=>`<option ${p.skill===x?'selected':''}>${x}</option>`).join('')}</select></label><label class="field">Minimum expertise<select name="level"><option value="1" ${p.level===1?'selected':''}>Level 1 · Developing</option><option value="2" ${p.level===2?'selected':''}>Level 2 · Experienced</option><option value="3" ${p.level===3?'selected':''}>Level 3 · Senior</option></select></label><label class="field full">Priority<select name="priority">${['Low','Medium','High'].map(x=>`<option ${p.priority===x?'selected':''}>${x}</option>`).join('')}</select></label>${roles.map((r,i)=>`<label class="field">${r} effort (hours)<input type="number" name="effort${i}" required min="1" max="5000" step="1" value="${p.effort[r]}"></label>`).join('')}</div><div id="form-error" role="alert"></div><div class="form-actions"><button type="button" data-close>Cancel</button>${!existing?'<button type="submit" name="mode" value="save">Save to intake</button>':''}<button type="submit" class="primary" name="mode" value="plan">Find a squad ✧</button></div></form>`);$('#project-form').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);for(const key of ['name','client','start','end','skill','priority'])p[key]=f.get(key).trim();p.level=+f.get('level');roles.forEach((r,i)=>p.effort[r]=+f.get('effort'+i));if(!p.name||!p.client||p.end<p.start||new Date(p.end)-new Date(p.start)>366*86400000||!days(p.start,p.end).length){$('#form-error').innerHTML='<p class="notice warning">Enter a project and customer, and a valid window of up to one year containing working days.</p>';return}if(e.submitter.value==='save'){state.projects.push(p);save('Added '+p.name+' to intake');close()}else squadDialog(p)}}
-function squadDialog(p){const recs=recommend(state,p),count=recs.filter(r=>r.selected).length;modal(`<div class="dialog-head"><div><h2 id="dialog-title">The right people. A clearer plan.</h2><p>${esc(p.name)} · ${fmt(p.start)} – ${fmt(p.end)}</p></div><button data-close aria-label="Close">×</button></div><div class="notice ${count<4?'warning':''}">${count===4?'✧ A feasible squad is ready for your review.':'⚑ '+count+' of 4 roles can be staffed. Adjust the project window or effort to resolve gaps.'}<br>Every recommendation checks expertise, existing commitments, and leave on each working day.</div>${recs.map((r,i)=>`<div class="squad-row"><div><strong style="font-size:12px">${r.role}</strong><small>${r.hours.toFixed(1)}h / workday</small></div><div><select aria-label="${r.role} specialist" data-role-index="${i}"><option value="">Select a specialist</option>${r.candidates.map(c=>`<option value="${c.personId}" ${c.personId===r.selected?'selected':''} ${!c.feasible?'disabled':''}>${c.name}${c.feasible?' · '+c.score+' pts':' · unavailable'}</option>`).join('')}</select><small id="reason-${i}">${esc(r.candidates.find(c=>c.personId===r.selected)?.reason||'No feasible specialist at the required level.')}</small></div></div>`).join('')}<p>Rules-based recommendations · one specialist per role · no automatic reassignment</p><div id="squad-error" role="alert"></div><div class="form-actions"><button id="back-project">Edit brief</button><button class="primary" id="apply-squad">Apply squad →</button></div>`,true);document.querySelectorAll('[data-role-index]').forEach(el=>el.onchange=()=>{const i=+el.dataset.roleIndex;recs[i].selected=el.value;$('#reason-'+i).textContent=recs[i].candidates.find(c=>c.personId===el.value)?.reason||'Select an available specialist.'});$('#back-project').onclick=()=>{const snapshot=state.projects.find(x=>x.id===p.id);if(snapshot){const at=state.projects.indexOf(snapshot);state.projects[at]=p;projectDialog(p.id);state.projects[at]=snapshot}else{state.projects.push(p);projectDialog(p.id);state.projects.pop()}};$('#apply-squad').onclick=()=>{const assignments=recs.filter(r=>r.selected).map(r=>({role:r.role,personId:r.selected,hours:r.hours}));const error=validateSquad(state,p,assignments);if(error){$('#squad-error').innerHTML=`<div class="notice warning">${esc(error)}</div>`;return}p.assignments=assignments;const index=state.projects.findIndex(x=>x.id===p.id);if(index<0)state.projects.push(p);else state.projects[index]=p;save('Applied squad to '+p.name);close()}}
-function leaveDialog(id){modal(`<div class="dialog-head"><div><h2 id="dialog-title">Space for time away.</h2><p>Leave immediately updates capacity and flags affected projects.</p></div><button data-close aria-label="Close">×</button></div><form id="leave-form"><div class="form-grid"><label class="field full">Team member<select name="person">${state.people.map(p=>`<option value="${p.id}" ${p.id===id?'selected':''}>${p.name} · ${p.role}</option>`).join('')}</select></label><label class="field">From<input type="date" name="start" value="2026-11-09" required></label><label class="field">Through<input type="date" name="end" value="2026-11-10" required></label></div><div id="leave-error" role="alert"></div><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Add leave</button></div></form>`);$('#leave-form').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);const start=f.get('start'),end=f.get('end');if(end<start){$('#leave-error').innerHTML='<p class="notice warning">End date must be on or after the start date.</p>';return}const person=state.people.find(p=>p.id===f.get('person'));person.leave.push({start,end});save('Added leave for '+person.name+' · '+fmt(start)+' – '+fmt(end));close()}}
+function modal(html, wide = false) {
+  previousFocus = document.activeElement;
+  $("#modal").innerHTML =
+    `<div class="overlay"><section class="dialog ${wide ? "wide" : ""}" role="dialog" aria-modal="true" aria-labelledby="dialog-title">${html}</section></div>`;
+  $("#modal")
+    .querySelectorAll("[data-close]")
+    .forEach((b) => (b.onclick = close));
+  $("#modal").querySelector("input,select,textarea,button")?.focus();
+}
+function close() {
+  cancelMatching();
+  cancelIntake();
+  $("#modal").innerHTML = "";
+  previousFocus?.focus();
+}
+document.addEventListener("keydown", (e) => {
+  if (!$("#modal").firstChild) return;
+  if (e.key === "Escape") close();
+  if (e.key === "Tab") {
+    const els = [
+      ...$("#modal").querySelectorAll(
+        "button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary",
+      ),
+    ].filter((el) => el.getClientRects().length);
+    if (e.shiftKey && document.activeElement === els[0]) {
+      e.preventDefault();
+      els.at(-1).focus();
+    } else if (!e.shiftKey && document.activeElement === els.at(-1)) {
+      e.preventDefault();
+      els[0].focus();
+    }
+  }
+});
+function action(a) {
+  if (a === "new") intakeUI.intake();
+  if (a === "leave") leaveDialog();
+  if (a === "next") {
+    const p = state.projects.find((p) => !p.assignments.length);
+    if (p) projectDialog(p.id);
+    else {
+      view = "Projects";
+      render();
+    }
+  }
+  if (a === "export") {
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "teamflow-workspace.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  if (a === "reset") {
+    modal(
+      '<div class="dialog-head"><h2 id="dialog-title">Reset this workspace?</h2><button data-close aria-label="Close">×</button></div><p>This replaces your local edits with the original fictional demo data. Export your workspace first if you want to keep it.</p><div class="form-actions"><button data-close>Cancel</button><button class="primary" id="confirm-reset">Reset demo</button></div>',
+    );
+    $("#confirm-reset").onclick = () => {
+      state = migrateWorkspace(seed());
+      save("Demo workspace reset");
+      close();
+    };
+  }
+}
+function projectDialog(id, draft) {
+  intakeUI.review(id, draft);
+}
+function leaveDialog(id) {
+  modal(
+    `<div class="dialog-head"><div><h2 id="dialog-title">Space for time away.</h2><p>Leave immediately updates capacity and flags affected projects.</p></div><button data-close aria-label="Close">×</button></div><form id="leave-form"><div class="form-grid"><label class="field full">Team member<select name="person">${state.people.map((p) => `<option value="${p.id}" ${p.id === id ? "selected" : ""}>${p.name} · ${p.role}</option>`).join("")}</select></label><label class="field">From<input type="date" name="start" value="2026-11-09" required></label><label class="field">Through<input type="date" name="end" value="2026-11-10" required></label></div><div id="leave-error" role="alert"></div><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Add leave</button></div></form>`,
+  );
+  $("#leave-form").onsubmit = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const start = f.get("start"),
+      end = f.get("end");
+    if (end < start) {
+      $("#leave-error").innerHTML =
+        '<p class="notice warning">End date must be on or after the start date.</p>';
+      return;
+    }
+    const person = state.people.find((p) => p.id === f.get("person"));
+    person.leave.push({ start, end });
+    save(
+      "Added leave for " + person.name + " · " + fmt(start) + " – " + fmt(end),
+    );
+    close();
+  };
+}
+const intakeUI = createIntakeUI({
+  $,
+  esc,
+  modal,
+  close,
+  getState: () => state,
+  save,
+  squadDialog,
+});
 render();
+
+async function squadDialog(p) {
+  modal(
+    `<div class="dialog-head"><div><span class="tag">Semantic squad matching</span><h2 id="dialog-title">Finding the right expertise.</h2><p>Reading role requirements and specialist experience.</p></div><button data-close aria-label="Close">×</button></div><div class="matching-loader"><span class="spinner"></span><strong id="match-progress" role="status">Starting the language model…</strong><p>The first run downloads a pretrained model (about 23 MB plus runtime). Later runs reuse cached files. Text is processed on your device.</p></div><div class="form-actions"><button id="skip-ml">Use rules instead</button><button id="edit-loading">Edit brief</button></div>`,
+  );
+  const dialog = $("#modal").firstElementChild;
+  $("#skip-ml").onclick = () => {
+    cancelMatching();
+    showSquad(p, null, "You chose the rules-based baseline.");
+  };
+  $("#edit-loading").onclick = () => {
+    cancelMatching();
+    projectDialog(p.id, p);
+  };
+  try {
+    const result = await matchWorkspace(
+      state,
+      p,
+      projectRoles(p),
+      (message) => {
+        if (dialog.isConnected) $("#match-progress").textContent = message;
+      },
+    );
+    if (dialog.isConnected) showSquad(p, result.scores);
+  } catch (error) {
+    if (dialog.isConnected)
+      showSquad(
+        p,
+        null,
+        "Semantic model unavailable. Rules-based recommendations are shown; retry when your connection and browser allow model loading.",
+      );
+  }
+}
+
+function showSquad(p, scores, fallback = "") {
+  let mode = scores ? "semantic" : "baseline";
+  let recs;
+  const baseline = recommend(state, p);
+  function draw() {
+    recs = recommend(state, p, mode === "semantic" ? scores : null);
+    const count = recs.filter((r) => r.selected).length;
+    modal(
+      `<div class="dialog-head"><div><span class="tag ${mode === "semantic" ? "" : "gray"}">${mode === "semantic" ? "✧ ML semantic matching · MiniLM" : "Rules-based baseline · no ML"}</span><h2 id="dialog-title">A squad with the right experience.</h2><p>${esc(p.name)} · ${fmt(p.start)} – ${fmt(p.end)}</p></div><button data-close aria-label="Close">×</button></div>
+      ${fallback ? `<div class="notice warning">${esc(fallback)} <button class="link-button" id="retry-ml">Retry semantic matching →</button></div>` : ""}
+      ${scores ? `<div class="mode-switch"><button id="semantic-mode" class="${mode === "semantic" ? "primary" : ""}">Semantic matching</button><button id="baseline-mode" class="${mode === "baseline" ? "primary" : ""}">Compare rules baseline</button></div>` : ""}
+      <div class="notice ${count < recs.length ? "warning" : ""}">${count === recs.length ? `✓ ${count} feasible ${count === 1 ? "specialist" : "specialists"} found.` : `⚑ ${count} of ${recs.length} roles can be staffed. Edit dates, effort, or requirements to resolve the gaps.`} Role, expertise, mandatory skills and daily capacity are enforced in both modes.</div>
+      ${recs
+        .map(
+          (
+            r,
+            i,
+          ) => `<section class="match-role"><div class="match-role-head"><div><h2>${r.role}</h2><p>${r.hours.toFixed(1)}h per working day · Minimum level ${p.level}</p></div><span class="tag ${r.selected ? "" : "amber"}">${r.selected ? "Feasible" : "Unfilled"}</span></div><p class="requirement-copy">${esc(p.requirements?.[r.role] || defaultRequirements[r.role])}</p>
+      ${(p.requiredSkills?.[r.role] || []).length ? `<p class="mandatory">Required: ${esc(p.requiredSkills[r.role].join(", "))}</p>` : ""}
+      <label class="field">${r.role} specialist<select aria-label="${r.role} specialist" data-role-index="${i}"><option value="">Select a specialist</option>${r.candidates.map((c) => `<option value="${c.personId}" ${c.personId === r.selected ? "selected" : ""} ${!c.feasible ? "disabled" : ""}>${esc(c.name)} · ${c.feasible ? c.score + " pts" : "Unavailable"}</option>`).join("")}</select></label><div id="evidence-${i}"></div>
+      <details class="candidate-details"><summary>Compare ${r.candidates.length} candidates · rules pick: ${esc(state.people.find((u) => u.id === baseline[i].selected)?.name || "None feasible")}</summary><div class="table-wrap"><table><thead><tr><th>SPECIALIST</th><th>${mode === "semantic" ? "SIMILARITY" : "DOMAIN"}</th><th>SCORE</th><th>FEASIBILITY</th></tr></thead><tbody>${r.candidates.map((c) => `<tr><td>${esc(c.name)}</td><td>${mode === "semantic" ? c.similarity.toFixed(3) : c.skill ? "Match" : "Adjacent"}</td><td>${c.score}</td><td>${esc(c.reason)}</td></tr>`).join("")}</tbody></table></div></details></section>`,
+        )
+        .join("")}
+      <p class="scoring-note">${mode === "semantic" ? "Score: 65 × positive cosine similarity + 25 × spare-capacity ratio + 10 for domain match. Similarity measures text relevance, not probability of successful delivery. Weights are prototype assumptions." : "Baseline: domain match (40), spare capacity (up to 40), and seniority above the minimum (5 per level)."} One specialist per role; manager approval required.</p><div id="squad-error" role="alert"></div><div class="form-actions"><button id="back-project">Edit brief</button><button class="primary" id="apply-squad">Apply squad →</button></div>`,
+      true,
+    );
+    recs.forEach((r, i) => evidence(r, i));
+    document.querySelectorAll("[data-role-index]").forEach(
+      (el) =>
+        (el.onchange = () => {
+          const i = +el.dataset.roleIndex;
+          recs[i].selected = el.value;
+          evidence(recs[i], i);
+        }),
+    );
+    if ($("#semantic-mode"))
+      $("#semantic-mode").onclick = () => {
+        mode = "semantic";
+        draw();
+      };
+    if ($("#baseline-mode"))
+      $("#baseline-mode").onclick = () => {
+        mode = "baseline";
+        draw();
+      };
+    if ($("#retry-ml")) $("#retry-ml").onclick = () => squadDialog(p);
+    $("#back-project").onclick = () => projectDialog(p.id, p);
+    $("#apply-squad").onclick = () => {
+      const assignments = recs
+        .filter((r) => r.selected)
+        .map((r) => ({ role: r.role, personId: r.selected, hours: r.hours }));
+      const error = validateSquad(state, p, assignments);
+      if (error) {
+        $("#squad-error").innerHTML =
+          `<div class="notice warning">${esc(error)}</div>`;
+        return;
+      }
+      p.assignments = assignments;
+      p.matching = {
+        mode,
+        model: mode === "semantic" ? MODEL_ID : null,
+        at: new Date().toISOString(),
+        selections: recs.map((r) => {
+          const c = r.candidates.find((c) => c.personId === r.selected);
+          return {
+            role: r.role,
+            personId: c.personId,
+            score: c.score,
+            similarity: c.similarity,
+            parts: c.parts,
+          };
+        }),
+      };
+      const index = state.projects.findIndex((x) => x.id === p.id);
+      if (index < 0) state.projects.push(p);
+      else state.projects[index] = p;
+      save(
+        `Applied ${mode === "semantic" ? "ML-assisted" : "rules-based"} squad to ${p.name}`,
+      );
+      close();
+    };
+  }
+  function evidence(r, i) {
+    const c = r.candidates.find((c) => c.personId === r.selected);
+    if (!c) {
+      $("#evidence-" + i).innerHTML =
+        '<p class="evidence">No feasible specialist selected. Review candidate blockers below.</p>';
+      return;
+    }
+    const u = state.people.find((u) => u.id === c.personId);
+    $("#evidence-" + i).innerHTML =
+      `<div class="evidence"><strong>Why this person is eligible</strong><p>${esc(c.reason)}</p><div class="chips">${u.capabilities.map((s) => `<span class="tag gray">${esc(s)}</span>`).join("")}</div><p><b>Profile evidence:</b> ${esc(u.experience || "No experience description provided.")}</p>${mode === "semantic" ? `<div class="score-parts"><span>Text relevance <b>${c.parts.relevance.toFixed(1)}/65</b></span><span>Spare capacity <b>${c.parts.capacity.toFixed(1)}/25</b></span><span>Domain <b>${c.parts.domain}/10</b></span></div>` : ""}</div>`;
+  }
+  draw();
+}
+
+function profileDialog(id) {
+  const p = state.people.find((p) => p.id === id);
+  modal(
+    `<div class="dialog-head"><div><h2 id="dialog-title">The experience behind the role.</h2><p>${esc(p.name)} · ${p.role}</p></div><button data-close aria-label="Close">×</button></div><form id="profile-form"><div class="notice">Describe concrete work this specialist can do. Semantic matching compares this profile with each project's role requirements.</div><div class="form-grid"><label class="field full">Skills (comma separated)<input name="capabilities" maxlength="220" value="${esc(p.capabilities.join(", "))}" placeholder="Python, APIs, Document processing"></label><label class="field full">Relevant experience<textarea name="experience" maxlength="600" rows="5" required>${esc(p.experience)}</textarea></label><label class="field">Expertise level<select name="level">${[1, 2, 3].map((n) => `<option value="${n}" ${n === p.level ? "selected" : ""}>Level ${n} · ${["", "Developing", "Experienced", "Senior"][n]}</option>`).join("")}</select></label><label class="field">Daily capacity (hours)<input name="capacity" type="number" required min="1" max="12" step="0.5" value="${p.capacity}"></label></div><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Save profile</button></div></form>`,
+  );
+  $("#profile-form").onsubmit = (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const experience = f.get("experience").trim();
+    if (!experience) return;
+    p.capabilities = splitSkills(f.get("capabilities"));
+    p.experience = experience;
+    p.level = +f.get("level");
+    p.capacity = +f.get("capacity");
+    save("Updated expertise profile for " + p.name);
+    close();
+  };
+}
+
+function splitSkills(text) {
+  return [
+    ...new Set(
+      text
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function matchingPage() {
+  return `${heading("Expertise meets opportunity.", "Real semantic matching, with capacity checks you can trust.", false)}<section class="panel" style="margin-bottom:24px"><div class="panel-heading"><div><span class="tag">New · AI project intake</span><h2>From customer brief to approved requirements.</h2><p>Draft roles with AI, refine the scope, then approve before choosing people.</p></div><button class="primary" data-action="new">Start with a brief →</button></div></section><section class="semantic-hero"><div><span class="tag">✧ Core capability · pretrained MiniLM</span><h2>Match the work to the experience.</h2><p>Describe what each role needs to deliver. Teamflow compares those requirements with specialist profiles, then checks qualifications and every working day.</p><button class="primary" data-plan="${state.projects.find((p) => p.id === "p3")?.id || state.projects[0]?.id || ""}">Try semantic squad matching →</button></div><div class="match-flow"><span>01 &nbsp; Understand requirements</span><span>02 &nbsp; Compare skills & experience</span><span>03 &nbsp; Enforce daily capacity</span><span>04 &nbsp; Review, compare, approve</span></div></section><div class="cards"><section class="step"><h2>Meaning beyond keywords</h2><p>A pretrained sentence model compares descriptions, so “extract investor information” can relate to “document processing.” No model training or API key is needed.</p></section><section class="step"><h2>Evidence you can inspect</h2><p>See profile text, declared skills, capacity and the score breakdown. Compare the ML ranking with the original rules on the same project.</p></section><section class="step"><h2>Capacity stays mandatory</h2><p>A high similarity cannot bypass role, expertise, mandatory skills, or leave. Infeasible candidates stay visible with a reason and cannot be selected.</p></section></div><section class="panel" style="margin-top:24px"><div class="panel-heading"><div><h2>Get the inputs right</h2><p>Edit experience in Team, then add specific requirements and optional mandatory skills in a project brief. Names and customer identifiers are excluded from model input.</p></div><button data-view="Team">Edit team profiles →</button></div></section><p class="scoring-note">Runs on your device in a background worker. First use downloads model files from Hugging Face and the runtime from jsDelivr; profile text is not sent for inference. If loading fails, the app labels its rules-based fallback. A relevance score is not a performance prediction.</p><div style="height:25px"></div>`;
+}
+
+function guide() {
+  return `${heading("A planner you can explain.", "Machine learning for relevance. Explicit rules for feasibility.", false)}<div class="steps"><div class="step"><h2>01 / Draft and approve staffing</h2><p>Start a new project with the customer brief. A local SmolLM2 language model suggests roles, responsibilities and reasons. A fixed checklist surfaces scope questions. The production lead edits the roles, confirms dates and effort, and approves requirements before matching. Manual planning is also available. Define optional mandatory skills. Keep specialist experience and skill profiles up to date in Team. Existing workspaces are upgraded without clearing assignments or leave.</p></div><div class="step"><h2>02 / Match meaning with MiniLM</h2><p>The pretrained all-MiniLM-L6-v2 model creates 384-dimensional embeddings of role requirements and specialist profiles. Cosine similarity measures relevance. It runs in a browser worker; model files are cached by the browser and embeddings are cached in memory by their full text.</p></div><div class="step"><h2>03 / Enforce constraints and rank</h2><p>Role, minimum expertise, exact mandatory skills (case insensitive), and spare capacity on every weekday must pass. The score is 65 × positive similarity + 25 × average spare-capacity ratio + 10 for domain match. These are transparent prototype weights, not calibrated probabilities. Even effort per day and one specialist per role remain assumptions.</p></div><div class="step"><h2>04 / Compare and approve</h2><p>Compare the semantic ranking against the rules baseline. Inspect actual profile evidence and blocked candidates. Choose a feasible squad and apply it; the system validates constraints again. Switching ranking modes resets the proposed selections. Failed model loading falls back visibly to the rules baseline.</p></div><div class="step"><h2>Boundaries and evaluation</h2><p>Fictional sample data, browser-local storage, no shared backend, and self-reported approval names. AI staffing reasons are generated suggestions; candidate evidence comes from stored profiles. Profile quality affects results. Mandatory skills use explicit tags, not inferred qualifications. The model does not learn from your edits. Evaluate top-three suitability with production leads, compare against the baseline, and track zero infeasible assignments before relying on the model in production. The November overview is fixed; project recommendations check their complete date window.</p></div></div><div style="height:24px"></div>`;
+}
