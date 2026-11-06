@@ -1,5 +1,5 @@
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
-const files=['index.html','app.js','engine.js','style.css','semantic-core.js','semantic-worker.js','semantic-client.js','intake-core.js','intake-client.js','intake-ui.js'];
+const files=['index.html','app.js','engine.js','workspace.js','style.css','semantic-core.js','semantic-worker.js','semantic-client.js','intake-core.js','intake-client.js','intake-ui.js'];
 const assets={};for(const file of files)assets['/'+file]=await readFile('dist/'+file,'utf8');assets['/']=assets['/index.html'];
 const api=await readFile('worker/api.js','utf8');
 const source=api+'\nconst assets='+JSON.stringify(assets)+';\nexport default {async fetch(request,env){const path=new URL(request.url).pathname;if(path==="/api/intake")return handleIntake(request,env);if(!["GET","HEAD"].includes(request.method))return new Response("Method not allowed",{status:405});if(!Object.hasOwn(assets,path))return new Response("Not found",{status:404});return new Response(request.method==="HEAD"?null:assets[path],{headers:{"Content-Type":path.endsWith(".js")?"text/javascript; charset=utf-8":path.endsWith(".css")?"text/css; charset=utf-8":"text/html; charset=utf-8","X-Content-Type-Options":"nosniff","Cache-Control":"no-cache"}})}};';

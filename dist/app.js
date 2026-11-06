@@ -1,3 +1,4 @@
+import { shiftDate, validateWindow, weekRanges, removeMember } from "./workspace.js";
 import {
   roles,
   projectRoles,
@@ -29,7 +30,7 @@ const $ = (s) => document.querySelector(s),
           "'": "&#39;",
         })[c],
     );
-const base = "2026-11-02",
+let base = "2026-11-02",
   end = "2026-11-27";
 const seed = () => ({
   people: [
@@ -57,7 +58,7 @@ const seed = () => ({
       client: "Northstar Capital",
       skill: "Onboarding",
       level: 2,
-      start: base,
+      start: "2026-11-02",
       end: "2026-11-13",
       priority: "High",
       effort: { "Project manager": 30, Analyst: 50, Engineer: 60, QA: 30 },
@@ -121,6 +122,7 @@ try {
   state = seed();
 }
 migrateWorkspace(state);
+if (state.window && !validateWindow(state.window.start, state.window.end)) { base=state.window.start; end=state.window.end; }
 let view = "Overview",
   filter = "",
   statusFilter = "All projects";
@@ -165,7 +167,7 @@ function conflict(p) {
 function status(p) {
   return p.staffing?.status === "draft"
     ? "Needs review"
-    : !p.assignments.length
+    : p.assignments.length < projectRoles(p).length
       ? "Needs squad"
       : conflict(p)
         ? "At risk"
@@ -173,20 +175,20 @@ function status(p) {
 }
 function badge(p) {
   const s = status(p);
-  return `<span class="tag ${s === "At risk" ? "amber" : s === "Needs squad" ? "gray" : ""}">${s}</span>`;
+  return `<span class="tag ${s === "At risk" ? "amber" : s === "Needs squad" ? "gray" : ""}">${esc(s)}</span>`;
 }
 function person(p) {
-  return `<div class="person"><span class="avatar">${initials(p.name)}</span><div>${esc(p.name)}<small>${p.role}</small></div></div>`;
+  return `<div class="person"><span class="avatar">${esc(initials(p.name))}</span><div>${esc(p.name)}<small>${p.role}</small></div></div>`;
 }
 function stats() {
   const us = state.people.map((p) => utilization(state, p, base, end));
   const used = us.reduce((s, u) => s + u.used, 0),
     cap = us.reduce((s, u) => s + u.cap, 0);
   return {
-    pct: Math.round((used / cap) * 100),
+    pct: cap ? Math.round((used / cap) * 100) : 0,
     free: Math.round(cap - used),
     risk: state.projects.filter(conflict).length,
-    pending: state.projects.filter((p) => !p.assignments.length).length,
+    pending: state.projects.filter((p) => p.assignments.length < projectRoles(p).length).length,
   };
 }
 function render() {
@@ -206,7 +208,7 @@ function render() {
       )
       .join(
         "",
-      )}</nav><div class="sidebar-bottom"><div class="mini-card"><strong>Good work starts with balance.</strong><br><span style="color:#839077">Make room for your team to do their best work.</span></div><div class="profile"><span class="avatar">PL</span><div>Production lead<small style="display:block;color:#909b90;margin-top:3px">Demo workspace</small></div></div></div></aside><main class="main"><header class="topbar"><div>Workspace <span> / &nbsp;${view}</span></div><div><span class="dot"></span> Local demo <span class="hide-mobile">&nbsp; · &nbsp; Changes saved in this browser</span></div></header><div class="content">${view === "Overview" ? overview(s) : view === "Matching" ? matchingPage() : view === "Projects" ? projects() : view === "Team" ? team() : view === "Activity" ? activity() : guide()}<footer class="footer"><span>Teamflow · Thoughtful planning. Better outcomes.</span><span>Sample planning period · November 2026</span></footer></div></main></div>`;
+      )}</nav><div class="sidebar-bottom"><div class="mini-card"><strong>Good work starts with balance.</strong><br><span style="color:#839077">Make room for your team to do their best work.</span></div><div class="profile"><span class="avatar">PL</span><div>Production lead<small style="display:block;color:#909b90;margin-top:3px">Demo workspace</small></div></div></div></aside><main class="main"><header class="topbar"><div>Workspace <span> / &nbsp;${view}</span></div><div><span class="dot"></span> Local demo <span class="hide-mobile">&nbsp; · &nbsp; Changes saved in this browser</span></div></header><div class="content">${view === "Overview" ? overview(s) : view === "Matching" ? matchingPage() : view === "Projects" ? projects() : view === "Team" ? team() : view === "Activity" ? activity() : guide()}<footer class="footer"><span>Teamflow · Thoughtful planning. Better outcomes.</span><span>Planning window · ${esc(base)} – ${esc(end)}</span></footer></div></main></div>`;
   bind();
 }
 function heading(title, sub, actions = true) {
@@ -224,7 +226,7 @@ function overview(s) {
       "Team utilization",
       `${s.pct}<small>%</small>`,
       "↗",
-      "Across the 4-week planning window",
+      "Across your selected planning window",
     ],
     [
       "Available capacity",
@@ -247,15 +249,10 @@ function overview(s) {
     )
     .join(
       "",
-    )}</div><section class="panel"><div class="panel-heading"><div><h2>Capacity at a glance</h2><div class="sub">See the pressure before it becomes a problem.</div></div><div class="actions"><div class="legend"><span><i></i>Available</span><span><i class="bal"></i>Balanced</span><span><i class="high"></i>Conflict</span></div><span class="tag gray">Nov 2 – 27, 2026</span></div></div><div class="heatmap"><div class="heatrow header"><span>TEAM MEMBER</span><span>NOV 2 – 6</span><span>NOV 9 – 13</span><span>NOV 16 – 20</span><span>NOV 23 – 27</span><span>4-WK AVG.</span></div>${state.people
+    )}</div><section class="panel"><div class="panel-heading"><div><h2>Capacity at a glance</h2><div class="sub">See the pressure before it becomes a problem.</div></div><div class="actions"><div class="legend"><span><i></i>Available</span><span><i class="bal"></i>Balanced</span><span><i class="high"></i>Conflict</span></div><button data-action="dates">${esc(base)} – ${esc(end)} ▾</button></div></div><div class="heatmap" style="--weeks:${weekRanges(base,end).length}"><div class="heatrow header"><span>TEAM MEMBER</span>${weekRanges(base,end).map(([a,b])=>`<span>${fmt(a)} – ${fmt(b)}</span>`).join("")}<span>AVG.</span></div>${state.people
     .map(
       (p) =>
-        `<div class="heatrow">${person(p)}${[
-          ["2026-11-02", "2026-11-06"],
-          ["2026-11-09", "2026-11-13"],
-          ["2026-11-16", "2026-11-20"],
-          ["2026-11-23", "2026-11-27"],
-        ]
+        `<div class="heatrow">${person(p)}${weekRanges(base,end)
           .map(([a, b]) => {
             const u = utilization(state, p, a, b);
             return `<div class="cell ${u.conflicts ? "over" : u.percent > 65 ? "busy" : u.percent > 30 ? "medium" : ""}" title="${u.used} booked hours / ${u.cap} available hours; ${u.conflicts} days with conflicts">${u.percent}% ${u.conflicts ? "⚑" : ""}</div>`;
@@ -266,7 +263,7 @@ function overview(s) {
     )
     .join(
       "",
-    )}</div><div class="heat-foot"><span>8 specialists · 4 disciplines · Weekdays only</span><span>⚑ Daily capacity conflict</span></div></section><div class="lower"><section class="panel"><div class="panel-heading"><div><h2>Projects in motion</h2><div class="sub">The next great thing starts with the right people.</div></div><button class="link-button" data-view="Projects">View all ↗</button></div>${state.projects
+    )}</div><div class="heat-foot"><span>${state.people.length} specialists · ${new Set(state.people.map(p=>p.role)).size} disciplines · Weekdays only</span><span>⚑ Daily capacity conflict</span></div></section><div class="lower"><section class="panel"><div class="panel-heading"><div><h2>Projects in motion</h2><div class="sub">The next great thing starts with the right people.</div></div><button class="link-button" data-view="Projects">View all ↗</button></div>${state.projects
     .slice(0, 4)
     .map(
       (p) =>
@@ -294,17 +291,18 @@ function projects() {
   return `${heading("The work ahead.", "Build the right squad for every customer project.")}<div class="toolbar"><input id="search" aria-label="Search projects" placeholder="Search projects or customers…" value="${esc(filter)}"><select id="status-filter" aria-label="Filter project status">${["All projects", "Needs review", "Needs squad", "On track", "At risk"].map((x) => `<option ${x === statusFilter ? "selected" : ""}>${x}</option>`).join("")}</select></div><section class="panel table-wrap"><table><thead><tr><th>PROJECT / CUSTOMER</th><th>WINDOW</th><th>EXPERTISE</th><th>PRIORITY</th><th>STATUS</th><th></th></tr></thead><tbody>${list.map((p) => `<tr><td><strong>${esc(p.name)}</strong><p>${esc(p.client)}</p></td><td>${fmt(p.start)} – ${fmt(p.end)}</td><td>${p.skill}<p>Level ${p.level}+ · ${projectRoles(p).some(r => !p.effort[r]) ? "Effort pending" : projectRoles(p).reduce((sum,r) => sum + p.effort[r],0) + " hrs"}</p></td><td>${p.priority}</td><td>${badge(p)}</td><td><button data-plan="${p.id}">Plan squad ↗</button></td></tr>`).join("")}</tbody></table>${!list.length ? '<div class="empty">No projects match this view.</div>' : ""}</section>`;
 }
 function team() {
-  return `${heading("People first. Always.", "A shared view of expertise, availability, and the space to do good work.")}<div class="cards">${state.people
+  return `${heading("People first. Always.", "A shared view of expertise, availability, and the space to do good work.", false)}<div class="toolbar"><button class="primary" data-action="add-member">＋ Add team member</button><button data-action="dates">Planning window: ${esc(base)} – ${esc(end)} ▾</button></div><div class="cards">${state.people
     .map((p) => {
       const u = utilization(state, p, base, end);
-      return `<article class="teamcard">${person(p)}<span class="tag gray">${["", "Developing", "Experienced", "Senior"][p.level]} · ${p.capacity}h / day</span><div class="chips">${p.skills.map((s) => `<span class="tag">${s}</span>`).join("")}</div><p>${u.used}h booked / ${u.cap}h available</p><div class="bar"><span style="width:${Math.min(100, u.percent)}%"></span></div><p>${u.percent}% utilization ${u.conflicts ? "· " + u.conflicts + " conflict days" : ""}</p>${p.leave.map((l, i) => `<p style="margin-top:10px">Away ${fmt(l.start)} – ${fmt(l.end)} <button class="link-button" data-remove-leave="${p.id}:${i}" aria-label="Remove leave for ${p.name}">Remove</button></p>`).join("")}<p class="profile-experience">${esc(p.experience)}</p><div class="chips">${p.capabilities.map((s) => `<span class="tag gray">${esc(s)}</span>`).join("")}</div><button data-profile="${p.id}">Edit expertise</button> <button style="margin-top:15px" data-person-leave="${p.id}">Manage availability</button></article>`;
+      return `<article class="teamcard">${person(p)}<span class="tag gray">${["", "Developing", "Experienced", "Senior"][p.level]} · ${p.capacity}h / day</span><div class="chips">${p.skills.map((s) => `<span class="tag">${esc(s)}</span>`).join("")}</div><p>${u.used}h booked / ${u.cap}h available</p><div class="bar"><span style="width:${Math.min(100, u.percent)}%"></span></div><p>${u.percent}% utilization ${u.conflicts ? "· " + u.conflicts + " conflict days" : ""}</p>${p.leave.map((l, i) => `<p style="margin-top:10px">Away ${fmt(l.start)} – ${fmt(l.end)} <button class="link-button" data-remove-leave="${p.id}:${i}" aria-label="Remove leave for ${p.name}">Remove</button></p>`).join("")}<p class="profile-experience">${esc(p.experience)}</p><div class="chips">${p.capabilities.map((s) => `<span class="tag gray">${esc(s)}</span>`).join("")}</div><button data-profile="${p.id}">Edit profile</button> <button data-remove-member="${p.id}">Remove member</button> <button style="margin-top:15px" data-person-leave="${p.id}">Manage availability</button></article>`;
     })
-    .join("")}</div><div style="height:24px"></div>`;
+    .join("")}${!state.people.length ? '<div class="empty">Your team is empty. Add a specialist to start planning.</div>' : ""}</div><div style="height:24px"></div>`;
 }
 function activity() {
   return `${heading("Every decision, in view.", "A local history of staffing and availability changes.", false)}<section class="panel">${state.events.length ? state.events.map((e) => `<div class="project-row"><span class="avatar">✓</span><div class="project-info"><strong>${esc(e.text)}</strong><p>${new Date(e.time).toLocaleString()}</p></div></div>`).join("") : '<div class="empty">Your first planning decision will appear here.</div>'}</section><div class="actions" style="margin-bottom:30px"><button data-action="export">Export workspace JSON</button><button data-action="reset">Reset demo data</button></div>`;
 }
 function bind() {
+  document.querySelectorAll("[data-remove-member]").forEach(b=>b.onclick=()=>removeMemberDialog(b.dataset.removeMember));
   document
     .querySelectorAll("[data-profile]")
     .forEach((b) => (b.onclick = () => profileDialog(b.dataset.profile)));
@@ -382,10 +380,12 @@ document.addEventListener("keydown", (e) => {
   }
 });
 function action(a) {
+  if (a === "dates") dateDialog();
+  if (a === "add-member") profileDialog();
   if (a === "new") intakeUI.intake();
   if (a === "leave") leaveDialog();
   if (a === "next") {
-    const p = state.projects.find((p) => !p.assignments.length);
+    const p = state.projects.find((p) => p.assignments.length < projectRoles(p).length);
     if (p) projectDialog(p.id);
     else {
       view = "Projects";
@@ -408,6 +408,7 @@ function action(a) {
     );
     $("#confirm-reset").onclick = () => {
       state = migrateWorkspace(seed());
+      base="2026-11-02"; end="2026-11-27";
       save("Demo workspace reset");
       close();
     };
@@ -417,8 +418,9 @@ function projectDialog(id, draft) {
   intakeUI.review(id, draft);
 }
 function leaveDialog(id) {
+  if (!state.people.length) { toast("Add a team member first."); return; }
   modal(
-    `<div class="dialog-head"><div><h2 id="dialog-title">Space for time away.</h2><p>Leave immediately updates capacity and flags affected projects.</p></div><button data-close aria-label="Close">×</button></div><form id="leave-form"><div class="form-grid"><label class="field full">Team member<select name="person">${state.people.map((p) => `<option value="${p.id}" ${p.id === id ? "selected" : ""}>${p.name} · ${p.role}</option>`).join("")}</select></label><label class="field">From<input type="date" name="start" value="2026-11-09" required></label><label class="field">Through<input type="date" name="end" value="2026-11-10" required></label></div><div id="leave-error" role="alert"></div><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Add leave</button></div></form>`,
+    `<div class="dialog-head"><div><h2 id="dialog-title">Space for time away.</h2><p>Leave immediately updates capacity and flags affected projects.</p></div><button data-close aria-label="Close">×</button></div><form id="leave-form"><div class="form-grid"><label class="field full">Team member<select name="person">${state.people.map((p) => `<option value="${p.id}" ${p.id === id ? "selected" : ""}>${esc(p.name)} · ${p.role}</option>`).join("")}</select></label><label class="field">From<input type="date" name="start" value="${base}" required></label><label class="field">Through<input type="date" name="end" value="${base}" required></label></div><div id="leave-error" role="alert"></div><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Add leave</button></div></form>`,
   );
   $("#leave-form").onsubmit = (e) => {
     e.preventDefault();
@@ -578,22 +580,30 @@ function showSquad(p, scores, fallback = "") {
   draw();
 }
 
+function dateDialog() {
+  modal(`<div class="dialog-head"><div><h2 id="dialog-title">Your planning window</h2><p>Changes the capacity view and totals. Project schedules stay on their own dates.</p></div><button data-close aria-label="Close">×</button></div><form id="dates-form"><div class="form-grid"><label class="field">From<input type="date" name="start" value="${base}" required></label><label class="field">Through<input type="date" name="end" value="${end}" required></label></div><p>Up to one year. Scroll the calendar horizontally for longer windows.</p><div class="actions"><button type="button" id="today-window">Next 4 weeks</button><button type="button" id="demo-window">Demo dates</button></div><p id="dates-error" role="alert"></p><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Apply dates</button></div></form>`);
+  const form=$("#dates-form");
+  const set=(a,b)=>{form.elements.start.value=a;form.elements.end.value=b;};
+  $("#today-window").onclick=()=>{const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;set(today,shiftDate(today,27));};
+  $("#demo-window").onclick=()=>set("2026-11-02","2026-11-27");
+  form.onsubmit=e=>{e.preventDefault();const a=form.elements.start.value,b=form.elements.end.value;const error=validateWindow(a,b);if(error){$("#dates-error").textContent=error;return;}base=a;end=b;state.window={start:a,end:b};save();close();};
+}
+function removeMemberDialog(id) {
+  const p=state.people.find(p=>p.id===id);
+  const affected=state.projects.filter(p=>p.assignments.some(a=>a.personId===id));
+  modal(`<div class="dialog-head"><h2 id="dialog-title">Remove ${esc(p.name)}?</h2><button data-close aria-label="Close">×</button></div><p>This removes their profile and leave. Their assignments will be removed from ${affected.length} project(s); other squad members remain assigned. Affected projects will need a replacement.</p>${affected.map(p=>`<p>• ${esc(p.name)}</p>`).join('')}<div class="form-actions"><button data-close>Cancel</button><button id="confirm-remove">Remove member</button></div>`);
+  $("#confirm-remove").onclick=()=>{removeMember(state,id);save(`Removed ${p.name}; ${affected.length} projects need replanning`);close();};
+}
 function profileDialog(id) {
-  const p = state.people.find((p) => p.id === id);
-  modal(
-    `<div class="dialog-head"><div><h2 id="dialog-title">The experience behind the role.</h2><p>${esc(p.name)} · ${p.role}</p></div><button data-close aria-label="Close">×</button></div><form id="profile-form"><div class="notice">Describe concrete work this specialist can do. Semantic matching compares this profile with each project's role requirements.</div><div class="form-grid"><label class="field full">Skills (comma separated)<input name="capabilities" maxlength="220" value="${esc(p.capabilities.join(", "))}" placeholder="Python, APIs, Document processing"></label><label class="field full">Relevant experience<textarea name="experience" maxlength="600" rows="5" required>${esc(p.experience)}</textarea></label><label class="field">Expertise level<select name="level">${[1, 2, 3].map((n) => `<option value="${n}" ${n === p.level ? "selected" : ""}>Level ${n} · ${["", "Developing", "Experienced", "Senior"][n]}</option>`).join("")}</select></label><label class="field">Daily capacity (hours)<input name="capacity" type="number" required min="1" max="12" step="0.5" value="${p.capacity}"></label></div><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Save profile</button></div></form>`,
-  );
-  $("#profile-form").onsubmit = (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    const experience = f.get("experience").trim();
-    if (!experience) return;
-    p.capabilities = splitSkills(f.get("capabilities"));
-    p.experience = experience;
-    p.level = +f.get("level");
-    p.capacity = +f.get("capacity");
-    save("Updated expertise profile for " + p.name);
-    close();
+  const existing=state.people.find(p=>p.id===id);
+  const p=existing || {name:"",role:roles[0],level:2,capacity:8,skills:[],capabilities:[],experience:"",leave:[]};
+  modal(`<div class="dialog-head"><div><h2 id="dialog-title">${existing?'Edit team profile':'Add team member'}</h2><p>Skills and experience inform matching. Availability is checked each day.</p></div><button data-close aria-label="Close">×</button></div><form id="profile-form"><div class="form-grid"><label class="field">Full name<input name="name" maxlength="80" required value="${esc(p.name)}"></label><label class="field">Role<select name="role">${roles.map(r=>`<option ${r===p.role?'selected':''}>${r}</option>`).join('')}</select></label><label class="field full">Domains (comma separated)<input name="skills" maxlength="220" value="${esc(p.skills.join(', '))}" placeholder="Fund operations, Reporting, Onboarding"></label><label class="field full">Skills (comma separated)<input name="capabilities" maxlength="220" value="${esc(p.capabilities.join(', '))}" placeholder="Python, APIs, Document processing"></label><label class="field full">Relevant experience<textarea name="experience" maxlength="600" rows="4" required>${esc(p.experience)}</textarea></label><label class="field">Expertise level<select name="level">${[1,2,3].map(n=>`<option value="${n}" ${n===p.level?'selected':''}>Level ${n} · ${['','Developing','Experienced','Senior'][n]}</option>`).join('')}</select></label><label class="field">Daily capacity (hours)<input name="capacity" type="number" required min="0" max="12" step="0.5" value="${p.capacity}"></label></div><p>Profile changes recheck existing squads. Changing a role can flag assignments for review.</p><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">${existing?'Save profile':'Add member'}</button></div></form>`);
+  $("#profile-form").onsubmit=e=>{
+    e.preventDefault(); const f=new FormData(e.target);
+    const name=f.get('name').trim(),experience=f.get('experience').trim();if(!name||!experience)return;
+    Object.assign(p,{name,experience,role:f.get('role'),level:+f.get('level'),capacity:+f.get('capacity'),skills:splitSkills(f.get('skills')),capabilities:splitSkills(f.get('capabilities'))});
+    if(!existing){p.id=crypto.randomUUID();state.people.push(p);}
+    save(`${existing?'Updated':'Added'} team member ${p.name}`);close();
   };
 }
 
@@ -634,5 +644,5 @@ function guide() {
   <div class="guide-layers">${layers.map(([title,type,input,process,control,output],i)=>`<article class="guide-layer guide-layer-${i+1}"><header><span class="tag">Layer ${i+1}</span><h3>${title}</h3><p>${type}</p></header><dl><dt>Input</dt><dd>${input}</dd><dt>Process</dt><dd>${process}</dd><dt>Control</dt><dd>${control}</dd><dt>Output</dt><dd class="guide-output">${output}</dd></dl></article>`).join("")}</div>
   <div class="guide-commit">Final lead selection <span>→</span> Recheck constraints <span>→</span> Commit assignments</div></section>
   <section class="guide-section"><div class="guide-section-head"><span class="tag">Reliability by design</span><h2>Checks you can inspect.</h2></div><div class="guide-assurances"><article><h3>Structured validation</h3><p>Malformed drafts are rejected. A failed AI request preserves the brief and offers manual planning.</p></article><article><h3>Human checkpoints</h3><p>Approving staffing requirements and applying a squad are separate decisions. AI does not assign people automatically.</p></article><article><h3>Hard capacity checks</h3><p>A high semantic score cannot override missing skills, insufficient expertise or a daily capacity conflict.</p></article><article><h3>Visible reasons</h3><p>Review profile evidence, ranking components, blocked candidates and the saved approval history.</p></article></div></section>
-  <details class="panel guide-details"><summary>Matching logic and prototype boundaries</summary><p>Semantic score = 65 × positive cosine similarity + 25 × average spare-capacity ratio + 10 for domain match. These are prototype weights, not probabilities of successful delivery. Candidates must pass hard constraints before they can be selected.</p><p>MiniLM creates 384-dimensional embeddings in the browser. If the model cannot run, a clearly labeled rules baseline is available. The LLM processes the brief on the server; specialist profiles are processed locally for matching.</p><p>This prototype uses browser-local workspace records, self-reported approval names, even effort per working day and one specialist per selected role. Approval history is not tamper-proof. The overview uses a fixed November sample window; recommendations check the full project window. AI suggestions require lead review, and plans are never automatically reassigned.</p></details><div style="height:24px"></div>`;
+  <details class="panel guide-details"><summary>Matching logic and prototype boundaries</summary><p>Semantic score = 65 × positive cosine similarity + 25 × average spare-capacity ratio + 10 for domain match. These are prototype weights, not probabilities of successful delivery. Candidates must pass hard constraints before they can be selected.</p><p>MiniLM creates 384-dimensional embeddings in the browser. If the model cannot run, a clearly labeled rules baseline is available. The LLM processes the brief on the server; specialist profiles are processed locally for matching.</p><p>This prototype uses browser-local workspace records, self-reported approval names, even effort per working day and one specialist per selected role. Approval history is not tamper-proof. The overview supports a saved, adjustable date window; recommendations check the full project window. AI suggestions require lead review, and plans are never automatically reassigned.</p></details><div style="height:24px"></div>`;
 }

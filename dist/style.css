@@ -1001,3 +1001,5 @@ select:focus {
 .guide-details summary { cursor:pointer; font-weight:600; }
 @media(max-width:1000px){.guide-layers{grid-template-columns:1fr}.guide-assurances{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.guide-journey,.guide-assurances{grid-template-columns:1fr}.guide-section-head h2{font-size:22px}}
+
+.heatmap .heatrow { grid-template-columns:220px repeat(var(--weeks,4), minmax(110px,1fr)) 80px; width:max(100%, calc(360px + var(--weeks,4) * 122px)); }

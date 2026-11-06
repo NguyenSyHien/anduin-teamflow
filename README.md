@@ -59,7 +59,7 @@ The pretrained model is a sentence encoder, not a generative chatbot. Model rele
 
 ## Assumptions and limits
 
-One specialist per role; eight-hour default days; Monday–Friday workweek; full-day leave; evenly distributed effort; no public holidays or dependencies. The fixed November 2026 overview is a demo lens; project-level recommendations validate their full entered date range. Data is saved in the visitor's browser, not shared between users. Reset clears local edits. Export is for inspection/backup; import is not implemented. There is no authentication or backend. Font loading uses Google Fonts with local fallback fonts.
+One specialist per role; eight-hour default days; Monday–Friday workweek; full-day leave; evenly distributed effort; no public holidays or dependencies. The overview has a persistent date picker (up to one year), a next-four-weeks preset and a demo-period shortcut; project-level recommendations validate their full entered date range. Data is saved in the visitor's browser, not shared between users. Reset clears local edits. Export is for inspection/backup; import is not implemented. Workspace records have no authentication or shared database; the LLM intake API runs on the server. Font loading uses Google Fonts with local fallback fonts.
 
 ## Architecture
 
@@ -74,3 +74,7 @@ Import the public GitHub repository into Vercel. Select Other as framework, `npm
 Production leads need to understand why delivery is at risk, not just see average utilization. Teamflow exposes daily conflicts, keeps staffing decisions reviewable, and makes changes immediately visible. Success metrics: staffing time, overload days, on-time delivery and utilization variance. Next priorities: shared durable storage, access control, real calendar integrations, partial-day availability, flexible role headcount, historical effort estimation and global assignment optimization.
 
 See `SUBMISSION.md` for the suggested presentation narrative.
+
+
+### Editable workspace
+Click the date button in Capacity at a glance or Team to change the planning window. Project schedules are edited separately through Projects → Plan squad. In Team, add members, edit names, roles, domains, skills, experience and daily capacity, or remove a member after reviewing affected projects. Removal releases their assignments and marks incomplete squads as needing replacements. Activity retains demo reset and JSON export. Changes persist in the current browser.
