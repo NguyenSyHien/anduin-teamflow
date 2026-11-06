@@ -6,6 +6,11 @@ Public repository: https://github.com/NguyenSyHien/anduin-teamflow
 
 A capacity-aware squad planner built for the Anduin AI Business Associate take-home assignment. Fictional people and customers; not an official Anduin product.
 
+## User Journey and System Architecture
+
+<img width="1072" height="711" alt="image" src="https://github.com/user-attachments/assets/2524fdba-708b-431a-8f7e-a817929d953d" />
+
+
 ## Run locally
 
 Requires Node.js 20 or newer. No dependency installation or API keys required.
