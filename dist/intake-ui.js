@@ -26,12 +26,8 @@ export function createIntakeUI({
     `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
   function context(p) {
     const proposal = p.staffing?.proposal;
-    if (!proposal)
-      return '<div class="notice">Select only the roles this project needs. Confirm effort before approving.</div>';
-    return `<div class="notice"><strong>${p.staffing.source === "ai" ? "AI staffing draft · production lead review" : "Manual staffing plan"}</strong><p>${p.staffing.source === "ai" ? "Drafted with OpenAI. Review all suggestions; AI can miss work or propose unnecessary roles." : "No AI inference was used for this plan."}</p></div>
-    <details class="candidate-details" open><summary>Original proposal & review checklist</summary>${proposal.roles.map((r) => `<p><b>${esc(r.role)}</b> · ${esc(r.reason)}<br><span class="muted">${esc(r.responsibility)}</span></p>`).join("")}<h3>Questions to resolve</h3>${list(proposal.questions || reviewQuestions)}${list(proposal.assumptions || [])}</details>
-    ${proposal.rawText ? `<details class="candidate-details"><summary>Original AI outline</summary><p style="white-space:pre-wrap">${esc(proposal.rawText)}</p></details>` : ""}
-    ${p.staffing.history?.length ? `<details><summary>Approval history (${p.staffing.history.length})</summary>${p.staffing.history.map((a) => `<p>${esc(a.reviewer)} · ${esc(a.at)}<br>${esc(a.notes)}</p>`).join("")}</details>` : ""}`;
+    if (!proposal) return '';
+    return `<details class="candidate-details"><summary>${p.staffing.source === "ai" ? "AI notes & questions" : "Planning notes"}</summary>${proposal.roles.map(r=>`<p><b>${esc(r.role)}</b> · ${esc(r.reason)}</p>`).join('')}${proposal.questions?.length?`<h4>Open questions</h4>${list(proposal.questions)}`:''}${proposal.assumptions?.length?`<h4>Assumptions</h4>${list(proposal.assumptions)}`:''}${proposal.rawText?`<p>${esc(proposal.rawText)}</p>`:''}</details>${p.staffing.history?.length?`<details class="candidate-details"><summary>Approval history (${p.staffing.history.length})</summary>${p.staffing.history.map(a=>`<p>${esc(a.reviewer)} · ${esc(a.at)}<br>${esc(a.notes)}</p>`).join('')}</details>`:''}`;
   }
   function review(id, draft) {
     const existing = getState().projects.find((p) => p.id === id);
@@ -39,9 +35,9 @@ export function createIntakeUI({
     p.roles ??= [...roles];
     p.requirements ??= { ...defaultRequirements };
     p.requiredSkills ??= {};
-    modal(`<div class="dialog-head"><div><span class="tag">02 Production lead review</span><h2 id="dialog-title">Shape the right team.</h2><p>Approve the requirements first. Choose people next.</p></div><button data-close aria-label="Close">×</button></div>${context(p)}
+    modal(`<div class="dialog-head"><div><span class="tag">Step 2 of 3 · Review</span><h2 id="dialog-title">Review the project</h2><p>Check dates, roles and hours. Then find your squad.</p></div><button data-close aria-label="Close">×</button></div>
     <form id="review-form"><div class="form-grid">
-    <label class="field full">Customer brief<textarea name="brief" maxlength="2000" rows="3">${esc(p.brief || "")}</textarea></label>
+    <details class="field full compact-details"><summary>Customer request</summary><label class="field">Brief<textarea name="brief" maxlength="2000" rows="3">${esc(p.brief || "")}</textarea></label></details>
     <label class="field">Project name<input name="name" required maxlength="100" value="${esc(p.name)}"></label>
     <label class="field">Customer<input name="client" required maxlength="100" value="${esc(p.client)}"></label>
     <label class="field">Start date<input type="date" name="start" required min="2020-01-01" max="2035-12-31" value="${esc(p.start)}"></label>
@@ -49,12 +45,12 @@ export function createIntakeUI({
     <label class="field">Domain<select name="skill">${["Onboarding", "Fund operations", "Reporting"].map((x) => `<option ${p.skill === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
     <label class="field">Minimum expertise<select name="level">${[1, 2, 3].map((n) => `<option value="${n}" ${p.level === n ? "selected" : ""}>Level ${n} · ${["", "Developing", "Experienced", "Senior"][n]}</option>`).join("")}</select></label>
     <label class="field full">Priority<select name="priority">${["Low", "Medium", "High"].map((x) => `<option ${p.priority === x ? "selected" : ""}>${x}</option>`).join("")}</select></label>
-    <div class="field full"><h3>Required roles</h3><p class="muted">Remove roles you do not need. Each selected role currently has one specialist.</p></div>
-    ${roles.map((r, i) => `<section class="requirement-group field full"><label class="role-toggle"><input type="checkbox" name="include${i}" ${p.roles.includes(r) ? "checked" : ""}>${r}</label><div data-role-fields="${i}"><label class="field">${r} effort (hours)<input type="number" name="effort${i}" required min="1" max="5000" step="1" placeholder="Lead estimate required" value="${p.effort[r] ?? ""}"></label><label class="field">${r} responsibilities<textarea name="requirement${i}" required maxlength="600" rows="3">${esc(p.requirements[r] || defaultRequirements[r])}</textarea></label><label class="field">${r} mandatory skills (optional)<input name="required${i}" maxlength="220" placeholder="Exact skills, comma separated" value="${esc((p.requiredSkills[r] || []).join(", "))}"></label></div></section>`).join("")}
-    <label class="field full">Production lead name<input name="reviewer" maxlength="100" value="${esc(p.staffing?.approval?.reviewer || "")}" placeholder="Who is reviewing this plan?"></label>
-    <label class="field full">Review notes / answers to open questions<textarea name="notes" maxlength="2000" rows="3">${esc(p.staffing?.approval?.notes || p.staffing?.draftNotes || "")}</textarea></label>
-    <label class="role-toggle field full"><input type="checkbox" name="confirmed">I have reviewed the roles, effort, assumptions and dates.</label>
-    </div><p class="muted">Approval names are self-reported in this local demo. Changing approved requirements clears this project's assignments and requires reapproval.</p><div id="review-error" role="alert"></div><div class="form-actions"><button type="button" data-close>Cancel</button><button type="submit" name="mode" value="save" formnovalidate>Save draft</button><button class="primary" name="mode" value="approve">Approve requirements & find squad →</button></div></form>`);
+    <div class="field full"><h3>Team roles</h3><p class="muted">One person per role. Uncheck any you don’t need.</p></div>
+    ${roles.map((r, i) => `<section class="requirement-group field full"><label class="role-toggle"><input type="checkbox" name="include${i}" ${p.roles.includes(r) ? "checked" : ""}>${r}</label><div data-role-fields="${i}"><label class="field">Total hours<input type="number" name="effort${i}" required min="1" max="5000" step="1" placeholder="Estimate hours" value="${p.effort[r] ?? ""}"></label><label class="field">Main task<textarea name="requirement${i}" required maxlength="600" rows="2">${esc(p.requirements[r] || defaultRequirements[r])}</textarea></label><details class="compact-details"><summary>Required skills (optional)</summary><label class="field">Skills<input name="required${i}" maxlength="220" placeholder="Exact skills, comma separated" value="${esc((p.requiredSkills[r] || []).join(", "))}"></label></details></div></section>`).join("")}
+    <label class="field full">Your name<input name="reviewer" maxlength="100" value="${esc(p.staffing?.approval?.reviewer || "")}" placeholder="Production lead"></label>
+    <details class="field full compact-details"><summary>Add review notes (optional)</summary><label class="field">Notes<textarea name="notes" maxlength="2000" rows="2">${esc(p.staffing?.approval?.notes || p.staffing?.draftNotes || "")}</textarea></label></details><div class="field full">${context(p)}</div>
+    <label class="role-toggle field full"><input type="checkbox" name="confirmed">I confirm this staffing plan.</label>
+    </div>${p.assignments.length ? '<p class="muted">Changing this plan clears its current squad.</p>' : ""}<div id="review-error" role="alert"></div><div class="form-actions"><button type="button" data-close>Cancel</button><button type="submit" name="mode" value="save" formnovalidate>Save draft</button><button class="primary" name="mode" value="approve">Approve & find squad →</button></div></form>`);
     roles.forEach((r, i) => {
       const toggle = document.querySelector(`[name="include${i}"]`);
       const sync = () => {
@@ -174,10 +170,10 @@ export function createIntakeUI({
     });
   }
   function intake(saved = {}) {
-    modal(`<div class="dialog-head"><div><span class="tag">01 Brief → 02 Lead review → 03 Squad</span><h2 id="dialog-title">Start with the customer’s words.</h2><p>Turn a request into a staffing draft. You decide what gets approved.</p></div><button data-close aria-label="Close">×</button></div><form id="intake-form">
+    modal(`<div class="dialog-head"><div><span class="tag">Step 1 of 3 · Project</span><h2 id="dialog-title">New project</h2><p>Describe the work. AI will suggest the roles.</p></div><button data-close aria-label="Close">×</button></div><form id="intake-form">
     <label class="field">Customer request<textarea name="brief" required minlength="20" maxlength="2000" rows="6" placeholder="We need to migrate our investor data into a new platform by December 18.">${esc(saved.brief || "")}</textarea></label>
     <div class="form-grid"><label class="field">Project name<input name="name" required maxlength="100" value="${esc(saved.name || "")}" placeholder="Investor data migration"></label><label class="field">Customer<input name="client" required maxlength="100" value="${esc(saved.client || "")}" placeholder="Atlas Capital"></label></div>
-    <div class="notice"><strong>AI suggests. Your production lead decides.</strong><p>Your brief is sent securely to OpenAI to suggest roles and scope questions. No model download is needed. Dates and hours require your confirmation.</p></div><div id="intake-error" role="alert"></div><div class="form-actions"><button type="button" id="manual-intake">Plan manually</button><button class="primary">Draft roles with AI ✧</button></div></form>`);
+    <p class="muted">AI suggests roles; you approve the plan. Your brief is processed by an LLM.</p><div id="intake-error" role="alert"></div><div class="form-actions"><button type="button" id="manual-intake">Plan manually</button><button class="primary">Suggest roles ✧</button></div></form>`);
     const form = $("#intake-form"),
       read = () => Object.fromEntries(new FormData(form));
     $("#manual-intake").onclick = () => {
@@ -203,7 +199,7 @@ export function createIntakeUI({
       e.preventDefault();
       const data = read();
       modal(
-        `<div class="dialog-head"><div><span class="tag">AI staffing draft</span><h2 id="dialog-title">Understanding the work.</h2></div><button data-close aria-label="Close">×</button></div><div class="matching-loader"><span class="spinner"></span><strong id="intake-progress" role="status">Connecting to the staffing assistant…</strong><p>No people will be assigned. You will review every suggested role.</p></div><div class="form-actions"><button id="cancel-intake">Back to brief</button></div>`,
+        `<div class="dialog-head"><div><span class="tag">AI staffing draft</span><h2 id="dialog-title">Suggesting roles…</h2></div><button data-close aria-label="Close">×</button></div><div class="matching-loader"><span class="spinner"></span><strong id="intake-progress" role="status">Connecting to the staffing assistant…</strong><p>You’ll review the plan next.</p></div><div class="form-actions"><button id="cancel-intake">Back to brief</button></div>`,
       );
       const dialog = $("#modal").firstElementChild;
       $("#cancel-intake").onclick = () => {

@@ -1003,3 +1003,8 @@ select:focus {
 @media(max-width:600px){.guide-journey,.guide-assurances{grid-template-columns:1fr}.guide-section-head h2{font-size:22px}}
 
 .heatmap .heatrow { grid-template-columns:220px repeat(var(--weeks,4), minmax(110px,1fr)) 80px; width:max(100%, calc(360px + var(--weeks,4) * 122px)); }
+
+.compact-details summary { cursor:pointer; color:#607657; font-size:13px; padding:8px 0; }
+.compact-details[open] summary { margin-bottom:8px; }
+#review-form .requirement-group { padding:14px; }
+#review-form .requirement-group h3 { margin:0; }
