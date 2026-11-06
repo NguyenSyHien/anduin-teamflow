@@ -4,63 +4,49 @@ Live demo: https://anduin-teamflow.adored-char-2796.chatgpt.site
 
 Public repository: https://github.com/NguyenSyHien/anduin-teamflow
 
-A capacity-aware squad planner built for the Anduin AI Business Associate take-home assignment. Fictional people and customers; not an official Anduin product.
+Teamflow helps production leads turn customer requests into staffing plans and assign the right specialists based on expertise, workload, and availability.
 
-## User Journey and System Architecture
+# User Journey and System Architecture
 
 <img width="1072" height="711" alt="image" src="https://github.com/user-attachments/assets/2524fdba-708b-431a-8f7e-a817929d953d" />
 
+# The problem
 
-## Run locally
+Staffing projects through manual coordination makes it difficult to spot overloaded specialists, unused capacity, and delivery risks. Changes to deadlines or availability create more planning work.
 
-Requires Node.js 20 or newer. No dependency installation or API keys required.
+Teamflow brings project requirements, team expertise, and capacity into one workflow.
 
-```sh
-npm start
-```
+How it works
+1. Describe the project: Enter the customer’s request.
+2. Review the staffing proposal: An LLM suggests roles and responsibilities, highlighting assumptions and open questions.
+3. Approve the requirements: The production lead confirms roles, dates, effort, and required expertise.
+4. Find a squad: Semantic matching ranks relevant specialists; capacity rules check whether they can take the work.
+5. Apply and monitor: The lead confirms the squad. The dashboard updates bookings, utilization, and conflicts as plans change.
 
-Open http://127.0.0.1:4173. Run `npm test` for scheduling checks and `npm run build` to validate the static deployment bundle.
+# Architecture
+<img width="1462" height="1598" alt="mermaid-diagram (1)" src="https://github.com/user-attachments/assets/5bf35378-b6e7-4753-bb6e-45f4d1145372" />
 
-## What it does
+Layer 1 — Understand the work: A server-side LLM converts an unstructured brief into a structured staffing proposal.
 
-- Portfolio dashboard with four-week capacity heatmap and daily conflict flags.
-- Project intake: customer, dates, domain, expertise, priority and effort by discipline.
-- Explainable recommendations for a project manager, analyst, engineer and QA specialist.
-- Human review of alternative candidates; assignments cannot exceed daily capacity.
-- Leave management, conflict detection and replanning when dates or requirements change.
-- Browser persistence, local activity history, workspace export and demo reset.
-- Responsive styling, keyboard-accessible dialogs and escaped user-entered text.
+Layer 2 — Keep people accountable: The production lead edits and approves the proposal before matching. AI suggestions do not automatically assign anyone.
 
-## Two-minute demo
+Layer 3 — Match expertise and availability: A pretrained MiniLM model runs in the browser to compare role requirements with specialist profiles. Candidates must also pass role, expertise, mandatory-skill, leave, and daily-capacity checks.
 
-1. Open Overview. Emma's leave makes Northstar fund onboarding at risk even though average utilization is modest.
-2. Review Northstar's squad. Its current window has no feasible engineer. Move the deadline to November 6 and reduce engineering effort to 30 hours (with other role effort also fitting daily capacity), or choose another feasible future window. Review and apply only when all four roles can be staffed.
-3. Open Atlas subscription workflow and find a squad. Review expertise, daily effort and alternate specialists; apply the recommendation.
-4. Add leave for an assigned person during the project. Observe the conflict on the dashboard; reopen the project to explore a new plan.
-5. Review Activity and export your workspace.
+The interface uses JavaScript and CSS, with a server-side API for LLM requests. Workspace records currently persist in browser-local storage.
 
-## Decision model
+# Why it helps Anduin
+- Faster planning: Converts customer requests into a reviewable starting plan.
+- Better workload visibility: Shows booked capacity alongside incoming project demand.
+- Earlier risk detection: Identifies daily overbooking and leave conflicts.
+- More informed staffing: Considers relevant experience alongside availability.
+- Easier replanning: Recalculates the picture when project or team information changes.
 
-Each role's total effort is spread evenly over weekdays in the project's inclusive date window. The engine filters candidates by role and minimum expertise. A candidate is feasible only if spare capacity meets that daily effort on **every day**, accounting for all other committed projects and full-day leave. Replanning excludes the same project's existing bookings to avoid double-counting.
+# Reliability by design
+Semantic relevance influences ranking, but cannot override feasibility checks. The app revalidates a squad before applying it, shows reasons for blocked candidates, and requires human approval. If semantic matching is unavailable, a clearly labeled rules-based fallback remains available.
 
-Feasible candidates rank by domain match (40 points), average spare capacity (up to 40 points), and expertise above the minimum (5 points per level). Stable name sorting breaks ties. Domain is a preference; expertise level and capacity are hard constraints. Priority is a visible triage signal, not automatic preemption. An unfillable role remains empty and blocks application.
+Matching scores indicate relevance—not guaranteed performance. Automated tests cover capacity calculations, approval gates, matching constraints, and dashboard updates.
 
-This is an explainable, deterministic decision-support engine, **not an LLM integration or a claim of global optimality**. A production AI layer could turn natural-language briefs into structured effort estimates, explain trade-offs and ask clarifying questions; the same deterministic constraints should validate its outputs. This avoids treating plausible AI text as a feasible staffing plan.
+# Current scope
+The app supports editable projects, team profiles, leave, planning dates, staffing approval, squad matching, and an interactive dashboard. Fictional sample data is included for demonstrations.
 
-## Assumptions and limits
-
-One specialist per role; eight-hour default days; Monday–Friday workweek; full-day leave; evenly distributed effort; no public holidays or dependencies. The fixed November 2026 overview is a demo lens; project-level recommendations validate their full entered date range. Data is saved in the visitor's browser, not shared between users. Reset clears local edits. Export is for inspection/backup; import is not implemented. There is no authentication or backend. Font loading uses Google Fonts with local fallback fonts.
-
-## Architecture
-
-`dist/engine.js` contains pure scheduling functions. `dist/app.js` owns state and UI. `dist/style.css` defines the visual system. `server.mjs` is a dependency-free local static server. Tests use the built-in Node test runner. The static application can be hosted on Vercel, GitHub Pages or any HTTPS static host.
-
-## Deploy on Vercel
-
-Import the public GitHub repository into Vercel. Select Other as framework, `npm run build` as build command and `dist` as output directory. These settings are also provided in `vercel.json`. No environment variables are required.
-
-## Product rationale
-
-Production leads need to understand why delivery is at risk, not just see average utilization. Teamflow exposes daily conflicts, keeps staffing decisions reviewable, and makes changes immediately visible. Success metrics: staffing time, overload days, on-time delivery and utilization variance. Next priorities: shared durable storage, access control, real calendar integrations, partial-day availability, flexible role headcount, historical effort estimation and global assignment optimization.
-
-See `SUBMISSION.md` for the suggested presentation narrative.
+It currently assumes one specialist per selected role, weekday working schedules, and evenly distributed project effort. Shared storage, authenticated accounts, and a tamper-resistant audit trail are next steps for a multi-user production rollout.
