@@ -1008,3 +1008,20 @@ select:focus {
 .compact-details[open] summary { margin-bottom:8px; }
 #review-form .requirement-group { padding:14px; }
 #review-form .requirement-group h3 { margin:0; }
+
+.metric-button { text-align:left; font:inherit; width:100%; cursor:pointer; transition:transform .18s,box-shadow .18s; }
+.metric-button:hover { transform:translateY(-3px); box-shadow:0 8px 24px #203f2312; }
+.pipeline-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:0 0 20px; }
+.pipeline-strip button { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px; border:1px solid #dfe7dc; border-radius:12px; background:#fff; }
+.pipeline-strip strong { font-size:22px; color:#31513b; }
+.demand-strip { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:22px; background:#edf3e7; border-radius:16px; margin-bottom:24px; }
+.demand-strip strong { display:block; font-size:24px; margin:8px 0; }
+.demand-strip strong span { font-size:16px; font-weight:400; color:#647261; }
+.demand-strip p { font-size:12px; margin:0; color:#647261; }
+button.cell { border:0; width:100%; cursor:pointer; transition:filter .15s,transform .15s; }
+button.cell:hover { filter:brightness(.94); transform:scale(1.03); }
+button:focus-visible,summary:focus-visible { outline:3px solid #719a53; outline-offset:3px; }
+.content { animation:appear .2s ease-out; }
+@keyframes appear { from {opacity:.6;transform:translateY(4px)} to {opacity:1;transform:translateY(0)} }
+@media(max-width:700px){.pipeline-strip{grid-template-columns:repeat(2,1fr)}.demand-strip{align-items:flex-start;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.content{animation:none}.metric-button,button.cell{transition:none}}

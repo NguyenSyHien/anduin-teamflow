@@ -1,4 +1,4 @@
-import { shiftDate, validateWindow, weekRanges, removeMember } from "./workspace.js";
+import { dashboardStats, recentProjects, shiftDate, validateWindow, weekRanges, removeMember } from "./workspace.js";
 import {
   roles,
   projectRoles,
@@ -180,17 +180,7 @@ function badge(p) {
 function person(p) {
   return `<div class="person"><span class="avatar">${esc(initials(p.name))}</span><div>${esc(p.name)}<small>${p.role}</small></div></div>`;
 }
-function stats() {
-  const us = state.people.map((p) => utilization(state, p, base, end));
-  const used = us.reduce((s, u) => s + u.used, 0),
-    cap = us.reduce((s, u) => s + u.cap, 0);
-  return {
-    pct: cap ? Math.round((used / cap) * 100) : 0,
-    free: Math.round(cap - used),
-    risk: state.projects.filter(conflict).length,
-    pending: state.projects.filter((p) => p.assignments.length < projectRoles(p).length).length,
-  };
-}
+function stats() { return dashboardStats(state,base,end); }
 function render() {
   const s = stats();
   $("#app").innerHTML =
@@ -208,7 +198,7 @@ function render() {
       )
       .join(
         "",
-      )}</nav><div class="sidebar-bottom"><div class="mini-card"><strong>Good work starts with balance.</strong><br><span style="color:#839077">Make room for your team to do their best work.</span></div><div class="profile"><span class="avatar">PL</span><div>Production lead<small style="display:block;color:#909b90;margin-top:3px">Demo workspace</small></div></div></div></aside><main class="main"><header class="topbar"><div>Workspace <span> / &nbsp;${view}</span></div><div><span class="dot"></span> Local demo <span class="hide-mobile">&nbsp; · &nbsp; Changes saved in this browser</span></div></header><div class="content">${view === "Overview" ? overview(s) : view === "Matching" ? matchingPage() : view === "Projects" ? projects() : view === "Team" ? team() : view === "Activity" ? activity() : guide()}<footer class="footer"><span>Teamflow · Thoughtful planning. Better outcomes.</span><span>Planning window · ${esc(base)} – ${esc(end)}</span></footer></div></main></div>`;
+      )}</nav><div class="sidebar-bottom"><div class="mini-card"><strong>Good work starts with balance.</strong><br><span style="color:#839077">Make room for your team to do their best work.</span></div><div class="profile"><span class="avatar">PL</span><div>Production lead<small style="display:block;color:#909b90;margin-top:3px">Demo workspace</small></div></div></div></aside><main class="main"><header class="topbar"><div>Workspace <span> / &nbsp;${view}</span></div><div><span class="dot"></span> Personal workspace <span class="hide-mobile">&nbsp; · &nbsp; Changes saved in this browser</span></div></header><div class="content">${view === "Overview" ? overview(s) : view === "Matching" ? matchingPage() : view === "Projects" ? projects() : view === "Team" ? team() : view === "Activity" ? activity() : guide()}<footer class="footer"><span>Teamflow · Thoughtful planning. Better outcomes.</span><span>Planning window · ${esc(base)} – ${esc(end)}</span></footer></div></main></div>`;
   bind();
 }
 function heading(title, sub, actions = true) {
@@ -217,22 +207,22 @@ function heading(title, sub, actions = true) {
 function overview(s) {
   return `${heading("A little clarity. A lot of possibility.", "Your people, projects, and capacity — all in one place.")}<div class="metrics">${[
     [
-      "Active projects",
-      state.projects.filter((p) => p.assignments.length).length,
+      "All projects",
+      s.total,
       "▱",
-      `${s.pending} projects ready to staff`,
+      `${s.pending} need attention · View projects →`,
     ],
     [
       "Team utilization",
       `${s.pct}<small>%</small>`,
       "↗",
-      "Across your selected planning window",
+      `${Math.round(s.used)}h booked · View team →`,
     ],
     [
       "Available capacity",
       `${s.free}<small> hrs</small>`,
       "◷",
-      "Room for what comes next",
+      "After booked work · View team →",
     ],
     [
       "Projects at risk",
@@ -245,17 +235,17 @@ function overview(s) {
   ]
     .map(
       ([label, value, icon, note], i) =>
-        `<div class="metric"><div class="metric-label">${label}<span>${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot ${i === 3 && s.risk ? "warn" : ""}">${note}</div></div>`,
+        `<button class="metric metric-button" data-metric="${i}"><div class="metric-label">${label}<span>${icon}</span></div><div class="metric-value">${value}</div><div class="metric-foot ${i === 3 && s.risk ? "warn" : ""}">${note}</div></button>`,
     )
     .join(
       "",
-    )}</div><section class="panel"><div class="panel-heading"><div><h2>Capacity at a glance</h2><div class="sub">See the pressure before it becomes a problem.</div></div><div class="actions"><div class="legend"><span><i></i>Available</span><span><i class="bal"></i>Balanced</span><span><i class="high"></i>Conflict</span></div><button data-action="dates">${esc(base)} – ${esc(end)} ▾</button></div></div><div class="heatmap" style="--weeks:${weekRanges(base,end).length}"><div class="heatrow header"><span>TEAM MEMBER</span>${weekRanges(base,end).map(([a,b])=>`<span>${fmt(a)} – ${fmt(b)}</span>`).join("")}<span>AVG.</span></div>${state.people
+    )}</div><section class="pipeline-strip" aria-label="Project status">${Object.entries(s.counts).map(([label,count])=>`<button data-status="${label}"><span>${label}</span><strong>${count}</strong><span>↗</span></button>`).join('')}</section><section class="demand-strip"><div><span class="eyebrow">Planned workload · selected dates</span><strong>${s.demand}h requested <span>/ ${Math.round(s.cap)}h capacity</span></strong><p>${s.unknown ? `${s.unknown} projects need dates or hours. ` : ''}${s.outside ? `${s.outside} projects fall outside this window. ` : ''}Includes unassigned work; booked hours update when a squad is applied.</p></div><button data-action="dates">Change dates</button></section><section class="panel"><div class="panel-heading"><div><h2>Capacity at a glance</h2><div class="sub">See the pressure before it becomes a problem.</div></div><div class="actions"><div class="legend"><span><i></i>Available</span><span><i class="bal"></i>Balanced</span><span><i class="high"></i>Conflict</span></div><button data-action="dates">${esc(base)} – ${esc(end)} ▾</button></div></div><div class="heatmap" style="--weeks:${weekRanges(base,end).length}"><div class="heatrow header"><span>TEAM MEMBER</span>${weekRanges(base,end).map(([a,b])=>`<span>${fmt(a)} – ${fmt(b)}</span>`).join("")}<span>AVG.</span></div>${state.people
     .map(
       (p) =>
         `<div class="heatrow">${person(p)}${weekRanges(base,end)
           .map(([a, b]) => {
             const u = utilization(state, p, a, b);
-            return `<div class="cell ${u.conflicts ? "over" : u.percent > 65 ? "busy" : u.percent > 30 ? "medium" : ""}" title="${u.used} booked hours / ${u.cap} available hours; ${u.conflicts} days with conflicts">${u.percent}% ${u.conflicts ? "⚑" : ""}</div>`;
+            return `<button data-capacity="${p.id}|${a}|${b}" aria-label="${esc(p.name)}: ${fmt(a)} to ${fmt(b)}, ${u.percent}% booked" class="cell ${u.conflicts ? "over" : u.percent > 65 ? "busy" : u.percent > 30 ? "medium" : ""}" title="${u.used} booked hours / ${u.cap} available hours; ${u.conflicts} days with conflicts">${u.percent}% ${u.conflicts ? "⚑" : ""}</button>`;
           })
           .join(
             "",
@@ -263,8 +253,8 @@ function overview(s) {
     )
     .join(
       "",
-    )}</div><div class="heat-foot"><span>${state.people.length} specialists · ${new Set(state.people.map(p=>p.role)).size} disciplines · Weekdays only</span><span>⚑ Daily capacity conflict</span></div></section><div class="lower"><section class="panel"><div class="panel-heading"><div><h2>Projects in motion</h2><div class="sub">The next great thing starts with the right people.</div></div><button class="link-button" data-view="Projects">View all ↗</button></div>${state.projects
-    .slice(0, 4)
+    )}</div><div class="heat-foot"><span>${state.people.length} specialists · ${new Set(state.people.map(p=>p.role)).size} disciplines · Weekdays only</span><span>⚑ Daily capacity conflict</span></div></section><div class="lower"><section class="panel"><div class="panel-heading"><div><h2>Recent projects</h2><div class="sub">Your latest additions and updates.</div></div><button class="link-button" data-view="Projects">View all ↗</button></div>${recentProjects(state.projects)
+    .slice(0, 5)
     .map(
       (p) =>
         `<div class="project-row"><div class="project-icon">▱</div><div class="project-info"><strong>${esc(p.name)}</strong><p>${esc(p.client)} &nbsp;·&nbsp; Due ${fmt(p.end)}</p></div>${badge(p)}<button class="link-button" data-plan="${p.id}" aria-label="Plan ${esc(p.name)}">↗</button></div>`,
@@ -294,7 +284,7 @@ function team() {
   return `${heading("People first. Always.", "A shared view of expertise, availability, and the space to do good work.", false)}<div class="toolbar"><button class="primary" data-action="add-member">＋ Add team member</button><button data-action="dates">Planning window: ${esc(base)} – ${esc(end)} ▾</button></div><div class="cards">${state.people
     .map((p) => {
       const u = utilization(state, p, base, end);
-      return `<article class="teamcard">${person(p)}<span class="tag gray">${["", "Developing", "Experienced", "Senior"][p.level]} · ${p.capacity}h / day</span><div class="chips">${p.skills.map((s) => `<span class="tag">${esc(s)}</span>`).join("")}</div><p>${u.used}h booked / ${u.cap}h available</p><div class="bar"><span style="width:${Math.min(100, u.percent)}%"></span></div><p>${u.percent}% utilization ${u.conflicts ? "· " + u.conflicts + " conflict days" : ""}</p>${p.leave.map((l, i) => `<p style="margin-top:10px">Away ${fmt(l.start)} – ${fmt(l.end)} <button class="link-button" data-remove-leave="${p.id}:${i}" aria-label="Remove leave for ${p.name}">Remove</button></p>`).join("")}<p class="profile-experience">${esc(p.experience)}</p><div class="chips">${p.capabilities.map((s) => `<span class="tag gray">${esc(s)}</span>`).join("")}</div><button data-profile="${p.id}">Edit profile</button> <button data-remove-member="${p.id}">Remove member</button> <button style="margin-top:15px" data-person-leave="${p.id}">Manage availability</button></article>`;
+      return `<article class="teamcard">${person(p)}<span class="tag gray">${["", "Developing", "Experienced", "Senior"][p.level]} · ${p.capacity}h / day</span><div class="chips">${p.skills.map((s) => `<span class="tag">${esc(s)}</span>`).join("")}</div><p>${Math.round(u.used)}h booked / ${u.cap}h available</p><div class="bar"><span style="width:${Math.min(100, u.percent)}%"></span></div><p>${u.percent}% utilization ${u.conflicts ? "· " + u.conflicts + " conflict days" : ""}</p>${p.leave.map((l, i) => `<p style="margin-top:10px">Away ${fmt(l.start)} – ${fmt(l.end)} <button class="link-button" data-remove-leave="${p.id}:${i}" aria-label="Remove leave for ${p.name}">Remove</button></p>`).join("")}<p class="profile-experience">${esc(p.experience)}</p><div class="chips">${p.capabilities.map((s) => `<span class="tag gray">${esc(s)}</span>`).join("")}</div><button data-profile="${p.id}">Edit profile</button> <button data-remove-member="${p.id}">Remove member</button> <button style="margin-top:15px" data-person-leave="${p.id}">Manage availability</button></article>`;
     })
     .join("")}${!state.people.length ? '<div class="empty">Your team is empty. Add a specialist to start planning.</div>' : ""}</div><div style="height:24px"></div>`;
 }
@@ -302,6 +292,11 @@ function activity() {
   return `${heading("Every decision, in view.", "A local history of staffing and availability changes.", false)}<section class="panel">${state.events.length ? state.events.map((e) => `<div class="project-row"><span class="avatar">✓</span><div class="project-info"><strong>${esc(e.text)}</strong><p>${new Date(e.time).toLocaleString()}</p></div></div>`).join("") : '<div class="empty">Your first planning decision will appear here.</div>'}</section><div class="actions" style="margin-bottom:30px"><button data-action="export">Export workspace JSON</button><button data-action="reset">Reset demo data</button></div>`;
 }
 function bind() {
+  const openProjects=(selected='All projects')=>{view='Projects';filter='';statusFilter=selected;render();};
+  document.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>openProjects(b.dataset.status));
+  document.querySelectorAll('[data-metric]').forEach(b=>b.onclick=()=>{const i=+b.dataset.metric;if(i===0)openProjects();else if(i===3)openProjects('At risk');else{view='Team';render();}});
+  document.querySelectorAll('[data-capacity]').forEach(b=>b.onclick=()=>capacityDialog(...b.dataset.capacity.split('|')));
+
   document.querySelectorAll("[data-remove-member]").forEach(b=>b.onclick=()=>removeMemberDialog(b.dataset.removeMember));
   document
     .querySelectorAll("[data-profile]")
@@ -542,6 +537,7 @@ function showSquad(p, scores, fallback = "") {
         return;
       }
       p.assignments = assignments;
+      p.updatedAt = new Date().toISOString();
       p.matching = {
         mode,
         model: mode === "semantic" ? MODEL_ID : null,
@@ -580,6 +576,13 @@ function showSquad(p, scores, fallback = "") {
   draw();
 }
 
+function capacityDialog(id,start,end) {
+ const p=state.people.find(p=>p.id===id),u=utilization(state,p,start,end);
+ const projects=state.projects.filter(x=>x.start<=end&&x.end>=start&&x.assignments.some(a=>a.personId===id));
+ modal(`<div class="dialog-head"><div><h2 id="dialog-title">${esc(p.name)}</h2><p>${fmt(start)} – ${fmt(end)}</p></div><button data-close aria-label="Close">×</button></div><div class="notice">${Math.round(u.used)}h booked / ${u.cap}h capacity · ${u.conflicts} conflict days</div>${projects.map(x=>`<div class="project-row"><div class="project-info"><strong>${esc(x.name)}</strong><p>${x.assignments.filter(a=>a.personId===id).reduce((n,a)=>n+a.hours,0).toFixed(1)}h per working day</p></div><button data-detail-project="${x.id}">Review →</button></div>`).join('')||'<p>No booked projects in this period.</p>'}<div class="form-actions"><button id="capacity-leave">Manage availability</button></div>`);
+ document.querySelectorAll('[data-detail-project]').forEach(b=>b.onclick=()=>projectDialog(b.dataset.detailProject));
+ $('#capacity-leave').onclick=()=>leaveDialog(id);
+}
 function dateDialog() {
   modal(`<div class="dialog-head"><div><h2 id="dialog-title">Your planning window</h2><p>Changes the capacity view and totals. Project schedules stay on their own dates.</p></div><button data-close aria-label="Close">×</button></div><form id="dates-form"><div class="form-grid"><label class="field">From<input type="date" name="start" value="${base}" required></label><label class="field">Through<input type="date" name="end" value="${end}" required></label></div><p>Up to one year. Scroll the calendar horizontally for longer windows.</p><div class="actions"><button type="button" id="today-window">Next 4 weeks</button><button type="button" id="demo-window">Demo dates</button></div><p id="dates-error" role="alert"></p><div class="form-actions"><button type="button" data-close>Cancel</button><button class="primary">Apply dates</button></div></form>`);
   const form=$("#dates-form");

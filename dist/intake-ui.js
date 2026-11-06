@@ -17,6 +17,7 @@ export function createIntakeUI({
   squadDialog,
 }) {
   const upsert = (p) => {
+    p.updatedAt = new Date().toISOString();
     const state = getState(),
       index = state.projects.findIndex((x) => x.id === p.id);
     if (index < 0) state.projects.push(structuredClone(p));
